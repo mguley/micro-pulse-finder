@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package nats.service.v1;
+
+option go_package = "shared/proto/nats-service/gen;natsservicev1";
+
+// BusService provides methods to interact with a NATS server via gRPC.
+service BusService {
+  // Publishes a message to a specified NATS subject.
+  rpc Publish(PublishRequest) returns (PublishResponse);
+
+  // Subscribes to a specified NATS subject and receives messages.
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}
+
+// Request message for Publish.
+message PublishRequest {
+  // subject is the NATS subject to which the message will be published.
+  string subject = 1;
+
+  // data is the payload to be sent.
+  bytes data = 2;
+}
+
+// Response message for Publish.
+message PublishResponse {
+  // success indicates whether the publish operation was successful.
+  bool success = 1;
+
+  // message is an optional message with additional details.
+  string message = 2;
+}
+
+// Request message for Subscribe.
+message SubscribeRequest {
+  // subject is the NATS subject to subscribe to.
+  string subject = 1;
+
+  // queue_group is the optional queue group for the subscription.
+  string queue_group = 2;
+}
+
+// Response message for Subscribe.
+message SubscribeResponse {
+  // data is the data received from the subscription.
+  bytes data = 1;
+
+  // subject is the subject on which the message was received.
+  string subject = 2;
+}
