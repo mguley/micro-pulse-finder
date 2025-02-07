@@ -40,3 +40,12 @@ tidy:
 
 	@echo 'Vendoring workspace dependencies...'
 	go work vendor
+
+# =============================================================================== #
+# RPC
+# =============================================================================== #
+
+## generate/rpc: Generate Go code.
+.PHONY: generate/rpc
+generate/rpc:
+	protoc --go_out=. --go-grpc_out=. shared/proto/nats-service/*.proto
