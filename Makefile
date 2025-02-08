@@ -49,3 +49,15 @@ tidy:
 .PHONY: generate/rpc
 generate/rpc:
 	protoc --go_out=. --go-grpc_out=. shared/proto/nats-service/*.proto
+
+# =============================================================================== #
+# TESTING
+# =============================================================================== #
+
+## test/shared/integration: Run integration tests (bypass cache)
+.PHONY: test/shared/integration
+test/shared/integration:
+	@echo 'Running integration tests...'
+	go test -v -count=1 -p=1 ./shared/grpc/tests/integration/...
+
+
