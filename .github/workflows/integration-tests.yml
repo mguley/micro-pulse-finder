@@ -1,0 +1,54 @@
+name: Integration Tests and Linters
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  run_tests_and_linters:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Run Docker Compose
+        run: docker-compose -f micro.yml up -d nats
+
+      - name: Wait for NATS to be ready
+        run: |
+          echo "Waiting for NATS to be ready..."
+          until curl -s http://localhost:8222/ > /dev/null; do
+            echo "Waiting for NATS..."
+            sleep 5
+          done
+          echo "NATS is ready."
+
+      - name: Test NATS Connection
+        run: |
+          curl -s http://localhost:8222/ > /dev/null || echo "Failed to connect to NATS"
+
+      - name: Run Linters
+        run: |
+          make lint          
+
+      - name: Run shared integration tests
+        run: |
+          make test/shared/integration        
+
+      - name: Run nats-service integration tests
+        working-directory: nats-service
+        run: |
+          make test/nats-service/integration
