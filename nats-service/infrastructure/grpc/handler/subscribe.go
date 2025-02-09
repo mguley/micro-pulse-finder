@@ -1,0 +1,63 @@
+package handler
+
+import (
+	"fmt"
+	natsservicev1 "shared/proto/nats-service/gen"
+
+	"github.com/nats-io/nats.go"
+	"google.golang.org/grpc"
+)
+
+// Subscribe is a server-streaming RPC that subscribes to a NATS subject and sends received messages as they arrive.
+// The stream remains open until the client cancels or the server shuts down.
+func (s *BusService) Subscribe(
+	request *natsservicev1.SubscribeRequest,
+	server grpc.ServerStreamingServer[natsservicev1.SubscribeResponse],
+) (err error) {
+	if result := s.validator.ValidateSubscribeRequest(request); result != nil {
+		return result
+	}
+
+	var (
+		sub        *nats.Subscription
+		messagesCh = make(chan *nats.Msg, 64)
+		ctx        = server.Context() // Use server context to detect when client cancels or server is shutting down
+		subject    = request.GetSubject()
+		queueGroup = request.GetQueueGroup()
+		handler    = func(msg *nats.Msg) { messagesCh <- msg }
+	)
+
+	if sub, err = s.operations.Subscribe(subject, queueGroup, handler); err != nil {
+		return fmt.Errorf("could not subscribe to subject: %s: %w", request.Subject, err)
+	}
+
+	// Ensure we unsubscribe and close the channel when finished.
+	defer func() {
+		err = sub.Unsubscribe()
+		close(messagesCh)
+	}()
+
+	// Listen for messages or context cancellation.
+	for {
+		select {
+		case <-ctx.Done():
+			// The client closed the stream or the server is shutting down.
+			return ctx.Err()
+
+		case msg := <-messagesCh:
+			if msg == nil {
+				// Channel closed, end the stream.
+				return nil
+			}
+
+			// Construct a SubscribeResponse and send it to the client.
+			response := &natsservicev1.SubscribeResponse{
+				Data:    msg.Data,
+				Subject: msg.Subject,
+			}
+			if err = server.Send(response); err != nil {
+				return fmt.Errorf("could not send message to stream: %w", err)
+			}
+		}
+	}
+}
