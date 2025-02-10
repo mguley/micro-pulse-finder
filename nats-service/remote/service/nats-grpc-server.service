@@ -1,0 +1,74 @@
+[Unit]
+# Name for the service, which helps identify it in logs or service management tools.
+Description=Nats gRPC server
+
+Requires=network-online.target
+After=network-online.target
+
+# Configure service start rate limiting.
+# If the service is (re)started more than 5 times in 600 seconds, then don't permit it to start anymore.
+StartLimitIntervalSec=600
+# Limits the number of times the service can restart within the time window (600 seconds).
+StartLimitBurst=5
+
+[Service]
+# Specifies that the service should be started by executing the binary directly.
+Type=simple
+# The service will run as the `nats-service` user, ensuring that it doesn't run as root.
+User=nats-service
+# The service will run with the `nats-service` group permissions.
+Group=nats-service
+# Load environment variables from the /etc/environment file.
+EnvironmentFile=/etc/environment
+# Working directory for the server. Any relative paths will be based on this directory.
+WorkingDirectory=/opt/nats-grpc-server
+# Command to start the Nats gRPC server.
+ExecStart=/opt/nats-grpc-server/nats-service-o
+
+# Security hardening options
+# Disallows the service from gaining new privileges through exec().
+NoNewPrivileges=yes
+# Provides a private /tmp and /var/tmp directories for the service.
+PrivateTmp=yes
+# Mounts /usr, /boot, and /etc as read-only, restricting write access.
+ProtectSystem=full
+# Prevents the service from accessing user home directories.
+ProtectHome=yes
+# Isolates the service's user and group database to a minimal set, enhancing security.
+PrivateUsers=yes
+# Protects kernel tunable settings from being altered by the service.
+ProtectKernelTunables=yes
+# Restricts access to control groups, preventing the service from manipulating them.
+ProtectControlGroups=yes
+# Restricts the service to use only specified address families (network protocols).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Removes specific capabilities (e.g., debugging other processes) from the service.
+CapabilityBoundingSet=~CAP_SYS_PTRACE
+# Denies the service the ability to create writable and executable memory mappings.
+MemoryDenyWriteExecute=yes
+
+# Standard output/error handling
+# Directs standard output to the systemd journal.
+StandardOutput=journal
+# Directs standard error to the systemd journal.
+StandardError=journal
+
+# Resource limits
+# Sets the maximum number of open files (increase if your service handles many connections).
+LimitNOFILE=10240
+# Sets the maximum number of processes the service can create.
+LimitNPROC=512
+
+# Ensure all child processes are terminated when the service stops.
+KillMode=control-group
+
+# Automatically restart the service after a 5-second wait if it exits with a non-zero exit code.
+Restart=on-failure
+# If the service fails, systemd will wait 5 seconds before restarting it.
+RestartSec=5
+# Sets the time to wait for the service to stop before systemd forcibly kills it (graceful shutdown).
+TimeoutStopSec=20
+
+[Install]
+# Start the service automatically at boot time when the system reaches the multi-user target (non-graphical multi-user system).
+WantedBy=multi-user.target

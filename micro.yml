@@ -6,3 +6,14 @@ services:
     ports:
       - "4222:4222"
       - "8222:8222"
+
+  terraform:
+    image: hashicorp/terraform:latest
+    container_name: terraform
+    volumes:
+      - ./remote/terraform:/workspace
+      - ~/.ssh/vult:/root/.ssh:ro
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "-c", "apk update && apk add --no-cache rsync && tail -f /dev/null"]
+    environment:
+      - TF_LOG=TRACE
