@@ -1,0 +1,23 @@
+[Unit]
+# Name for the service, which helps identify it in logs or service management tools.
+Description=NATS Server
+
+# Service starts after the network is fully up and operational.
+After=network.target
+
+[Service]
+# Specifies that the service should be started by executing the binary directly.
+Type=simple
+# The service will run as the 'nats-service' user, ensuring that it doesn't run as root.
+User=nats-service
+# The service will run with the 'nats-service' group permissions.
+Group=nats-service
+# Command to start the service.
+ExecStart=/usr/local/bin/nats-server -js -p 4222 -m 8222
+
+# Automatically restart the service if it fails.
+Restart=on-failure
+
+[Install]
+# Start the service automatically at boot time when the system reaches the multi-user target (non-graphical multi-user system).
+WantedBy=multi-user.target
