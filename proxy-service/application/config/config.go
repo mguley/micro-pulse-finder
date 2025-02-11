@@ -21,15 +21,25 @@ func GetConfig() *Config {
 
 // Config holds configuration settings.
 type Config struct {
-	Nats NatsConfig // NATS configuration.
-	TLS  TLSConfig  // TLS configuration.
-	RPC  RPCConfig  // RPC configuration
-	Env  string     // Environment type (e.g., dev, prod).
+	Nats  NatsConfig  // NATS configuration.
+	TLS   TLSConfig   // TLS configuration.
+	RPC   RPCConfig   // RPC configuration.
+	Proxy ProxyConfig // Proxy configuration.
+	Env   string      // Environment type (e.g., dev, prod).
+}
+
+// ProxyConfig holds configuration settings for Proxy.
+type ProxyConfig struct {
+	Host            string // Host is the hostname of the proxy server.
+	Port            string // Port is the port number of the proxy server.
+	ControlPassword string // ControlPassword is the auth password used for the proxy's control port.
+	ControlPort     string // ControlPort is the port number of the proxy's control port.
+	Url             string // Url is the URL used to check the proxy's status or connectivity.
 }
 
 // RPCConfig holds configuration settings for RPC.
 type RPCConfig struct {
-	Port string // Port is the port for the Bus gRPC server.
+	Port string // Port is the port for the Proxy gRPC server.
 }
 
 // TLSConfig holds configuration settings for TLS.
@@ -47,11 +57,32 @@ type NatsConfig struct {
 // loadConfig loads configuration falling back to default values.
 func loadConfig() *Config {
 	return &Config{
-		Nats: loadNatsConfig(),
-		TLS:  loadTLSConfig(),
-		RPC:  loadRPCConfig(),
-		Env:  getEnv("ENV", "dev"),
+		Nats:  loadNatsConfig(),
+		TLS:   loadTLSConfig(),
+		RPC:   loadRPCConfig(),
+		Proxy: loadProxyConfig(),
+		Env:   getEnv("ENV", "dev"),
 	}
+}
+
+// loadProxyConfig loads Proxy configuration.
+func loadProxyConfig() ProxyConfig {
+	proxy := ProxyConfig{
+		Host:            getEnv("PROXY_HOST", ""),
+		Port:            getEnv("PROXY_PORT", ""),
+		ControlPassword: getEnv("PROXY_CONTROL_PASSWORD", ""),
+		ControlPort:     getEnv("PROXY_CONTROL_PORT", ""),
+		Url:             getEnv("PROXY_URL", ""),
+	}
+
+	checkRequiredVars("PROXY", map[string]string{
+		"PROXY_HOST":             proxy.Host,
+		"PROXY_PORT":             proxy.Port,
+		"PROXY_CONTROL_PASSWORD": proxy.ControlPassword,
+		"PROXY_CONTROL_PORT":     proxy.ControlPort,
+		"PROXY_URL":              proxy.Url,
+	})
+	return proxy
 }
 
 // loadRPCConfig loads RPC configuration.

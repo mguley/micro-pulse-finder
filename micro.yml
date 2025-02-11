@@ -7,6 +7,15 @@ services:
       - "4222:4222"
       - "8222:8222"
 
+  proxy:
+    container_name: proxy
+    build:
+      dockerfile: proxy-service/docker/proxy/Dockerfile
+      context: .
+    ports:
+      - "9050:9050"
+      - "9051:9051"
+
   terraform:
     image: hashicorp/terraform:latest
     container_name: terraform
