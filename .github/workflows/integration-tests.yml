@@ -25,7 +25,7 @@ jobs:
           go-version: '1.23'
 
       - name: Run Docker Compose
-        run: docker-compose -f micro.yml up -d nats
+        run: docker-compose -f micro.yml up -d nats proxy
 
       - name: Wait for NATS to be ready
         run: |
@@ -35,6 +35,15 @@ jobs:
             sleep 5
           done
           echo "NATS is ready."
+
+      - name: Wait for Proxy to be ready
+        run: |
+          echo "Waiting for Proxy to be ready..."
+          until docker exec proxy curl --socks5-hostname localhost:9050 https://check.torproject.org/ > /dev/null 2>&1; do
+            echo "Waiting for Proxy..."
+            sleep 5
+          done
+          echo "Proxy is ready."            
 
       - name: Test NATS Connection
         run: |
@@ -52,3 +61,8 @@ jobs:
         working-directory: nats-service
         run: |
           make test/nats-service/integration
+
+      - name: Run proxy-service integration tests
+        working-directory: proxy-service
+        run: |
+          make test/proxy-service/integration
