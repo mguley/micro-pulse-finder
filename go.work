@@ -2,5 +2,6 @@ go 1.23
 
 use (
 	nats-service
+	proxy-service
 	shared
 )
