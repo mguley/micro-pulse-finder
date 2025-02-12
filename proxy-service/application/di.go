@@ -12,6 +12,7 @@ type Container struct {
 	Config              dependency.LazyDependency[*config.Config]
 	Infrastructure      dependency.LazyDependency[*infrastructure.Container]
 	AuthenticateCommand dependency.LazyDependency[*control.AuthenticateCommand]
+	SignalCommand       dependency.LazyDependency[*control.SignalCommand]
 }
 
 // NewContainer initializes and returns a new Container with dependencies.
@@ -33,6 +34,15 @@ func NewContainer() *Container {
 				password = c.Config.Get().Proxy.ControlPassword
 			)
 			return control.NewAuthenticateCommand(adapter, password)
+		},
+	}
+	c.SignalCommand = dependency.LazyDependency[*control.SignalCommand]{
+		InitFunc: func() *control.SignalCommand {
+			var (
+				adapter = c.Infrastructure.Get().PortConnection.Get()
+				signal  = "NEWNYM"
+			)
+			return control.NewSignalCommand(adapter, signal)
 		},
 	}
 
