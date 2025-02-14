@@ -21,14 +21,12 @@ func TestNatsClient_Publish_Subscribe(t *testing.T) {
 
 	// Channel to capture received messages
 	received := make(chan []byte, 1)
-	defer close(received)
 
 	// Subscribe to the subject
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(3)*time.Second)
 	defer cancel()
 
 	subErr := make(chan error, 1)
-	defer close(subErr)
 
 	go func() {
 		err = env.Client.Subscribe(ctx, subject, "", func(data []byte, topic string) {
@@ -42,7 +40,9 @@ func TestNatsClient_Publish_Subscribe(t *testing.T) {
 	select {
 	case msg := <-received:
 		assert.Equal(t, data, msg, "received message does not match published data")
+		close(received)
 	case err = <-subErr:
+		close(subErr)
 		t.Fatalf("Subscription failed: %v", err)
 	case <-ctx.Done():
 		t.Fatal("Did not receive the published message in time")
@@ -82,14 +82,12 @@ func TestNatsClient_Subscribe_WithQueueGroup(t *testing.T) {
 
 	// Channel to capture received messages
 	received := make(chan []byte, 1)
-	defer close(received)
 
 	// Subscribe with a queue group
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	subErr := make(chan error, 1)
-	defer close(subErr)
 
 	go func() {
 		err = env.Client.Subscribe(ctx, subject, queueGroup, func(data []byte, topic string) {
@@ -103,7 +101,9 @@ func TestNatsClient_Subscribe_WithQueueGroup(t *testing.T) {
 	select {
 	case msg := <-received:
 		assert.Equal(t, data, msg, "received message does not match published data")
+		close(received)
 	case err = <-subErr:
+		close(subErr)
 		t.Fatalf("Subscription failed: %v", err)
 	case <-ctx.Done():
 		t.Fatal("Did not receive the published message in time")
@@ -123,8 +123,6 @@ func TestNatsClient_Subscribe_MultipleSubscribers(t *testing.T) {
 	// Channels to capture received messages
 	received1 := make(chan []byte, 1)
 	received2 := make(chan []byte, 1)
-	defer close(received1)
-	defer close(received2)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(3)*time.Second)
 	defer cancel()
@@ -150,6 +148,7 @@ func TestNatsClient_Subscribe_MultipleSubscribers(t *testing.T) {
 	case msg1 := <-received1:
 		t.Logf("Received message 1: %s", string(msg1))
 		assert.Equal(t, data, msg1, "subscriber 1 message mismatch")
+		close(received1)
 	case <-ctx.Done():
 		t.Fatal("Subscriber 1 did not receive the message in time")
 	}
@@ -158,6 +157,7 @@ func TestNatsClient_Subscribe_MultipleSubscribers(t *testing.T) {
 	case msg2 := <-received2:
 		t.Logf("Received message 2: %s", string(msg2))
 		assert.Equal(t, data, msg2, "subscriber 2 message mismatch")
+		close(received2)
 	case <-ctx.Done():
 		t.Fatal("Subscriber 2 did not receive the message in time")
 	}
