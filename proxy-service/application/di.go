@@ -1,6 +1,7 @@
 package application
 
 import (
+	"proxy-service/application/commands"
 	"proxy-service/application/commands/control"
 	"proxy-service/application/config"
 	"proxy-service/application/services"
@@ -16,6 +17,7 @@ type Container struct {
 	Infrastructure      dependency.LazyDependency[*infrastructure.Container]
 	AuthenticateCommand dependency.LazyDependency[*control.AuthenticateCommand]
 	SignalCommand       dependency.LazyDependency[*control.SignalCommand]
+	StatusCommand       dependency.LazyDependency[*commands.StatusCommand]
 	RetryStrategy       dependency.LazyDependency[interfaces.RetryStrategy]
 }
 
@@ -58,6 +60,16 @@ func NewContainer() *Container {
 				signal  = "NEWNYM"
 			)
 			return control.NewSignalCommand(adapter, signal)
+		},
+	}
+	c.StatusCommand = dependency.LazyDependency[*commands.StatusCommand]{
+		InitFunc: func() *commands.StatusCommand {
+			var (
+				timeout = time.Duration(10) * time.Second
+				url     = c.Config.Get().Proxy.Url
+				client  = c.Infrastructure.Get().Socks5Client.Get()
+			)
+			return commands.NewStatusCommand(timeout, url, client)
 		},
 	}
 
