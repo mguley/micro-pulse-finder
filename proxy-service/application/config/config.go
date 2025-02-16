@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 )
 
@@ -25,6 +26,7 @@ type Config struct {
 	TLS   TLSConfig   // TLS configuration.
 	RPC   RPCConfig   // RPC configuration.
 	Proxy ProxyConfig // Proxy configuration.
+	Pool  PoolConfig  // Pool configuration.
 	Env   string      // Environment type (e.g., dev, prod).
 }
 
@@ -35,6 +37,12 @@ type ProxyConfig struct {
 	ControlPassword string // ControlPassword is the auth password used for the proxy's control port.
 	ControlPort     string // ControlPort is the port number of the proxy's control port.
 	Url             string // Url is the URL used to check the proxy's status or connectivity.
+}
+
+// PoolConfig holds configuration options for the connection pool.
+type PoolConfig struct {
+	MaxSize         int // MaxSize is the maximum number of connections in the pool.
+	RefreshInterval int // RefreshInterval is the interval at which connections are refreshed.
 }
 
 // RPCConfig holds configuration settings for RPC.
@@ -61,8 +69,23 @@ func loadConfig() *Config {
 		TLS:   loadTLSConfig(),
 		RPC:   loadRPCConfig(),
 		Proxy: loadProxyConfig(),
+		Pool:  loadPoolConfig(),
 		Env:   getEnv("ENV", "dev"),
 	}
+}
+
+// loadPoolConfig loads Pool configuration.
+func loadPoolConfig() PoolConfig {
+	pool := PoolConfig{
+		MaxSize:         getEnvAsInt("POOL_MAX_SIZE", 0),
+		RefreshInterval: getEnvAsInt("POOL_REFRESH_INTERVAL", 0),
+	}
+
+	checkRequiredVars("POOL", map[string]string{
+		"POOL_MAX_SIZE":         string(rune(pool.MaxSize)),
+		"POOL_REFRESH_INTERVAL": string(rune(pool.RefreshInterval)),
+	})
+	return pool
 }
 
 // loadProxyConfig loads Proxy configuration.
@@ -130,6 +153,15 @@ func loadNatsConfig() NatsConfig {
 func getEnv(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v
+	}
+	return fallback
+}
+
+// getEnvAsInt fetches the value of an environment variable as an integer or returns a fallback.
+func getEnvAsInt(key string, fallback int) int {
+	v := getEnv(key, "")
+	if value, err := strconv.Atoi(v); err == nil {
+		return value
 	}
 	return fallback
 }
