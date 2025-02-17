@@ -5,9 +5,11 @@ import (
 	"proxy-service/application/commands/control"
 	"proxy-service/application/config"
 	"proxy-service/application/services"
+	"proxy-service/domain/entities"
 	"proxy-service/domain/interfaces"
 	"proxy-service/infrastructure"
 	"shared/dependency"
+	"shared/grpc/clients/nats_service"
 	"time"
 )
 
@@ -19,6 +21,9 @@ type Container struct {
 	SignalCommand       dependency.LazyDependency[*control.SignalCommand]
 	StatusCommand       dependency.LazyDependency[*commands.StatusCommand]
 	RetryStrategy       dependency.LazyDependency[interfaces.RetryStrategy]
+	NatsGrpcValidator   dependency.LazyDependency[nats_service.Validator]
+	NatsGrpcClient      dependency.LazyDependency[*nats_service.NatsClient]
+	UrlProcessorService dependency.LazyDependency[*services.UrlProcessorService]
 }
 
 // NewContainer initializes and returns a new Container with dependencies.
@@ -40,6 +45,40 @@ func NewContainer() *Container {
 				multiplier = 2.0
 			)
 			return services.NewExponentialBackoffStrategy(baseDelay, maxDelay, attempts, multiplier)
+		},
+	}
+	c.NatsGrpcValidator = dependency.LazyDependency[nats_service.Validator]{
+		InitFunc: func() nats_service.Validator {
+			return nats_service.NewBusClientValidator()
+		},
+	}
+	c.NatsGrpcClient = dependency.LazyDependency[*nats_service.NatsClient]{
+		InitFunc: func() *nats_service.NatsClient {
+			var (
+				env        = c.Config.Get().Env
+				validator  = c.NatsGrpcValidator.Get()
+				natsClient *nats_service.NatsClient
+				address    string
+				err        error
+			)
+			if address, err = entities.GetNats().Address(); err != nil {
+				panic(err)
+			}
+			if natsClient, err = nats_service.NewNatsClient(env, address, validator); err != nil {
+				panic(err)
+			}
+			return natsClient
+		},
+	}
+	c.UrlProcessorService = dependency.LazyDependency[*services.UrlProcessorService]{
+		InitFunc: func() *services.UrlProcessorService {
+			var (
+				pool       = c.Infrastructure.Get().ConnectionPool.Get()
+				natsClient = c.NatsGrpcClient.Get()
+				batchSize  = c.Config.Get().UrlProcessor.BatchSize
+				queueGroup = c.Config.Get().UrlProcessor.QueueGroup
+			)
+			return services.NewUrlProcessorService(pool, natsClient, batchSize, queueGroup)
 		},
 	}
 

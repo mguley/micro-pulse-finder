@@ -16,8 +16,8 @@ func GetNats() *Nats {
 	natsOnce.Do(func() {
 		cfg := config.GetConfig()
 		nats = &Nats{
-			Host: cfg.Nats.Host,
-			Port: cfg.Nats.Port,
+			RpcHost: cfg.Nats.RpcHost,
+			RpcPort: cfg.Nats.RpcPort,
 		}
 	})
 	return nats
@@ -25,14 +25,14 @@ func GetNats() *Nats {
 
 // Nats represents NATS configuration details.
 type Nats struct {
-	Host string // Host is the hostname of the NATS server.
-	Port string // Port is the port number of the NATS server.
+	RpcHost string // RpcHost is the address of the NATS gRPC server.
+	RpcPort string // RpcPort is the port number of the NATS gRPC server.
 }
 
 // Address returns the full address of the NATS server.
 func (b *Nats) Address() (address string, err error) {
-	if b.Host == "" || b.Port == "" {
+	if b.RpcHost == "" || b.RpcPort == "" {
 		return "", fmt.Errorf("invalid address: host or port is empty")
 	}
-	return fmt.Sprintf("%s:%s", b.Host, b.Port), nil
+	return fmt.Sprintf("%s:%s", b.RpcHost, b.RpcPort), nil
 }

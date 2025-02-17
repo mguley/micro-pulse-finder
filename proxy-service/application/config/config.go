@@ -22,12 +22,19 @@ func GetConfig() *Config {
 
 // Config holds configuration settings.
 type Config struct {
-	Nats  NatsConfig  // NATS configuration.
-	TLS   TLSConfig   // TLS configuration.
-	RPC   RPCConfig   // RPC configuration.
-	Proxy ProxyConfig // Proxy configuration.
-	Pool  PoolConfig  // Pool configuration.
-	Env   string      // Environment type (e.g., dev, prod).
+	Nats         NatsConfig         // NATS configuration.
+	TLS          TLSConfig          // TLS configuration.
+	RPC          RPCConfig          // RPC configuration.
+	Proxy        ProxyConfig        // Proxy configuration.
+	Pool         PoolConfig         // Pool configuration.
+	UrlProcessor UrlProcessorConfig // UrlProcessor configuration.
+	Env          string             // Environment type (e.g., dev, prod).
+}
+
+// UrlProcessorConfig holds configuration settings for UrlProcessorService.
+type UrlProcessorConfig struct {
+	BatchSize  int    // BatchSize is the max. number of concurrent URL processing goroutines.
+	QueueGroup string // QueueGroup is the NATS queue group for load balancing.
 }
 
 // ProxyConfig holds configuration settings for Proxy.
@@ -58,20 +65,36 @@ type TLSConfig struct {
 
 // NatsConfig holds configuration settings for NATS.
 type NatsConfig struct {
-	Host string // Host is the hostname of the NATS server.
-	Port string // Port is the port number of the NATS server.
+	Host    string // Host is the hostname of the NATS server.
+	Port    string // Port is the port number of the NATS server.
+	RpcHost string // RpcHost is the address of the NATS gRPC server.
+	RpcPort string // RpcPort is the port number of the NATS gRPC server.
 }
 
 // loadConfig loads configuration falling back to default values.
 func loadConfig() *Config {
 	return &Config{
-		Nats:  loadNatsConfig(),
-		TLS:   loadTLSConfig(),
-		RPC:   loadRPCConfig(),
-		Proxy: loadProxyConfig(),
-		Pool:  loadPoolConfig(),
-		Env:   getEnv("ENV", "dev"),
+		Nats:         loadNatsConfig(),
+		TLS:          loadTLSConfig(),
+		RPC:          loadRPCConfig(),
+		Proxy:        loadProxyConfig(),
+		Pool:         loadPoolConfig(),
+		UrlProcessor: loadUrlProcessorConfig(),
+		Env:          getEnv("ENV", "dev"),
 	}
+}
+
+// loadUrlProcessorConfig loads url processor service configuration.
+func loadUrlProcessorConfig() UrlProcessorConfig {
+	processor := UrlProcessorConfig{
+		BatchSize:  getEnvAsInt("URL_PROCESSOR_BATCH_SIZE", 0),
+		QueueGroup: getEnv("URL_PROCESSOR_QUEUE_GROUP", ""),
+	}
+
+	checkRequiredVars("URL PROCESSOR", map[string]string{
+		"URL_PROCESSOR_BATCH_SIZE": string(rune(processor.BatchSize)),
+	})
+	return processor
 }
 
 // loadPoolConfig loads Pool configuration.
@@ -137,14 +160,18 @@ func loadTLSConfig() TLSConfig {
 // loadNatsConfig loads NATS configuration.
 func loadNatsConfig() NatsConfig {
 	nats := NatsConfig{
-		Host: getEnv("NATS_HOST", "localhost"),
-		Port: getEnv("NATS_PORT", ""),
+		Host:    getEnv("NATS_HOST", "localhost"),
+		Port:    getEnv("NATS_PORT", ""),
+		RpcHost: getEnv("NATS_RPC_HOST", "localhost"),
+		RpcPort: getEnv("NATS_RPC_PORT", ""),
 	}
 
 	// Ensure required values are present
 	checkRequiredVars("NATS", map[string]string{
-		"NATS_HOST": nats.Host,
-		"NATS_PORT": nats.Port,
+		"NATS_HOST":     nats.Host,
+		"NATS_PORT":     nats.Port,
+		"NATS_RPC_HOST": nats.RpcHost,
+		"NATS_RPC_PORT": nats.RpcPort,
 	})
 	return nats
 }
