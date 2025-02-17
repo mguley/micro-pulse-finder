@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,26 +26,55 @@ func TestStatusCommand_CircuitRotation(t *testing.T) {
 	}
 
 	container := SetupTestContainer()
-	ipAddresses := make(map[string]bool)
-	var list []string
 
-	// Execute the StatusCommand multiple times and collect information.
-	for i := 0; i < 3; i++ {
-		statusCmd := container.StatusCommand.Get()
+	var (
+		numRequests = 3
+		results     = make(chan string, numRequests)
+		errs        = make(chan error, numRequests)
+		wg          sync.WaitGroup
+	)
 
-		response, err := statusCmd.Execute()
-		require.NoError(t, err, "Expected no error when executing status command")
-		require.NotEmpty(t, response, "Expected a non-empty response")
+	wg.Add(numRequests)
+	for i := 0; i < numRequests; i++ {
+		go func() {
+			defer wg.Done()
 
+			statusCmd := container.StatusCommand.Get()
+			var (
+				response string
+				err      error
+			)
+
+			if response, err = statusCmd.Execute(); err != nil {
+				errs <- err
+				return
+			}
+			results <- response
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err, "Expected no error when executing status command concurrently")
+	}
+
+	// Process the responses and collect the unique IP addresses.
+	var (
+		ipAddresses = make(map[string]bool)
+		list        = make([]string, numRequests)
+	)
+	for result := range results {
 		var data ipResponse
-		err = json.Unmarshal([]byte(response), &data)
-		require.NoError(t, err, "Expected a valid response")
+		err := json.Unmarshal([]byte(result), &data)
+		require.NoError(t, err, "Expected a valid JSON response")
 		require.NotEmpty(t, data.Origin, "IP address should not be empty")
-
 		ipAddresses[data.Origin] = true
 		list = append(list, data.Origin)
 	}
 
-	assert.Equal(t, 3, len(ipAddresses), "Expected each client to have a unique IP address")
+	// Assert that the number of unique IPs equals the number of requests.
+	assert.Equal(t, numRequests, len(ipAddresses), "Expected each request to have a unique IP address")
 	t.Logf("Collected IP addresses: %v", list)
 }
