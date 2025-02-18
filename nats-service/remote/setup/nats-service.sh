@@ -14,7 +14,7 @@ NATS_PORT=4222
 TLS_CERTIFICATE=/opt/grpc-certs/fullchain.pem
 TLS_KEY=/opt/grpc-certs/privkey.pem
 
-RPC_SERVER_PORT=61055
+NATS_RPC_SERVER_PORT=61355
 
 ENV=dev
 
@@ -63,7 +63,7 @@ set_environment_variables() {
         echo "TLS_KEY=${TLS_KEY}"
 
         # RPC
-        echo "RPC_SERVER_PORT=${RPC_SERVER_PORT}"
+        echo "NATS_RPC_SERVER_PORT=${NATS_RPC_SERVER_PORT}"
         echo "ENV=${ENV}"
 
       } >> /etc/environment

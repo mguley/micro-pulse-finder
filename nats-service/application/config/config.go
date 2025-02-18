@@ -57,11 +57,11 @@ func loadConfig() *Config {
 // loadRPCConfig loads RPC configuration.
 func loadRPCConfig() RPCConfig {
 	rpc := RPCConfig{
-		Port: getEnv("RPC_SERVER_PORT", ""),
+		Port: getEnv("NATS_RPC_SERVER_PORT", ""),
 	}
 
-	checkRequiredVars("RPC", map[string]string{
-		"RPC_SERVER_PORT": rpc.Port,
+	checkRequiredVars("NATS_RPC", map[string]string{
+		"NATS_RPC_SERVER_PORT": rpc.Port,
 	})
 	return rpc
 }

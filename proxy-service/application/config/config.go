@@ -134,11 +134,11 @@ func loadProxyConfig() ProxyConfig {
 // loadRPCConfig loads RPC configuration.
 func loadRPCConfig() RPCConfig {
 	rpc := RPCConfig{
-		Port: getEnv("RPC_SERVER_PORT", ""),
+		Port: getEnv("PROXY_RPC_SERVER_PORT", ""),
 	}
 
-	checkRequiredVars("RPC", map[string]string{
-		"RPC_SERVER_PORT": rpc.Port,
+	checkRequiredVars("PROXY_RPC", map[string]string{
+		"PROXY_RPC_SERVER_PORT": rpc.Port,
 	})
 	return rpc
 }
