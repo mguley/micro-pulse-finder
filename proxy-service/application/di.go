@@ -106,9 +106,9 @@ func NewContainer() *Container {
 			var (
 				timeout = time.Duration(10) * time.Second
 				url     = c.Config.Get().Proxy.Url
-				client  = c.Infrastructure.Get().Socks5Client.Get()
+				pool    = c.Infrastructure.Get().ConnectionPool.Get()
 			)
-			return commands.NewStatusCommand(timeout, url, client)
+			return commands.NewStatusCommand(timeout, url, pool)
 		},
 	}
 
