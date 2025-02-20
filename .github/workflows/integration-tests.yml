@@ -25,7 +25,7 @@ jobs:
           go-version: '1.23'
 
       - name: Run Docker Compose
-        run: docker-compose -f micro.yml up -d nats proxy
+        run: docker-compose -f micro.yml up -d nats proxy mongo
 
       - name: Wait for NATS to be ready
         run: |
@@ -43,7 +43,16 @@ jobs:
             echo "Waiting for Proxy..."
             sleep 5
           done
-          echo "Proxy is ready."            
+          echo "Proxy is ready." 
+
+      - name: Wait for MongoDB to be ready
+        run: |
+          echo "Waiting for MongoDB to be ready..."
+          until docker exec mongo mongosh --eval "db.runCommand({ ping: 1 })"; do
+            echo "Waiting for MongoDB..."
+            sleep 5
+          done
+          echo "MongoDB is ready."             
 
       - name: Test NATS Connection
         run: |
@@ -66,3 +75,8 @@ jobs:
         working-directory: proxy-service
         run: |
           make test/proxy-service/integration
+
+      - name: Run url-service integration tests
+        working-directory: url-service
+        run: |
+          make test/url-service/integration
