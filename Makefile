@@ -21,7 +21,7 @@ install/linter:
 .PHONY: lint
 lint: install/linter
 	@echo "Running GolangCI-Lint on all Go files in each module directory..."
-	@find ./nats-service ./proxy-service ./shared -name '*.go' -exec dirname {} \; | sort -u | xargs $(shell go env GOPATH)/bin/golangci-lint run
+	@find ./nats-service ./proxy-service ./url-service ./shared -name '*.go' -exec dirname {} \; | sort -u | xargs $(shell go env GOPATH)/bin/golangci-lint run
 
 ## tidy: format all .go files and tidy module dependencies
 .PHONY: tidy
@@ -40,6 +40,11 @@ tidy:
 	(cd ./proxy-service && go mod tidy)
 	@echo 'Verifying proxy-service module dependencies...'
 	(cd ./proxy-service && go mod verify)
+
+	@echo 'Tidying url-service module dependencies...'
+	(cd ./url-service && go mod tidy)
+	@echo 'Verifying url-service module dependencies...'
+	(cd ./url-service && go mod verify)
 
 	@echo 'Tidying shared module dependencies...'
 	(cd ./shared && go mod tidy)
