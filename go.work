@@ -4,4 +4,5 @@ use (
 	nats-service
 	proxy-service
 	shared
+	url-service
 )

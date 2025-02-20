@@ -16,6 +16,17 @@ services:
       - "9050:9050"
       - "9051:9051"
 
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: pass
+    volumes:
+      - micro-pulse-finder:/data/db
+
   terraform:
     image: hashicorp/terraform:latest
     container_name: terraform
@@ -26,3 +37,6 @@ services:
     entrypoint: ["/bin/sh", "-c", "apk update && apk add --no-cache rsync && tail -f /dev/null"]
     environment:
       - TF_LOG=TRACE
+
+volumes:
+  micro-pulse-finder:
