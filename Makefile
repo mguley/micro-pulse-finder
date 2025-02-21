@@ -67,17 +67,17 @@ generate/rpc:
 # TESTING
 # =============================================================================== #
 
-## test/shared/grpc/integration: Run grpc integration tests
+## test/shared/grpc/integration: Run grpc integration tests with race detector
 .PHONY: test/shared/grpc/integration
 test/shared/grpc/integration:
 	@echo 'Running RPC integration tests...'
-	go test -v -count=1 -p=1 ./shared/grpc/tests/integration/...
+	CGO_ENABLED=1 go test -race -v -count=1 -p=1 ./shared/grpc/tests/integration/...
 
-## test/shared/mongodb/integration: Run mongodb integration tests
+## test/shared/mongodb/integration: Run mongodb integration tests with race detector
 .PHONY: test/shared/mongodb/integration
 test/shared/mongodb/integration:
 	@echo 'Running MongoDB integration tests...'
-	go test -v -count=1 -p=1 ./shared/mongodb/tests/integration/...
+	CGO_ENABLED=1 go test -race -v -count=1 -p=1 ./shared/mongodb/tests/integration/...
 
 ## test/shared/integration: Run shared integration tests
 .PHONY: test/shared/integration
