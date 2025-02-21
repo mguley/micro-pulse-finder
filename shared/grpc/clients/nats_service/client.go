@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	natsservicev1 "shared/proto/nats-service/gen"
 
 	"google.golang.org/grpc"
@@ -100,7 +101,12 @@ func (c *NatsClient) Subscribe(
 			return ctx.Err()
 		default:
 			if message, err = stream.Recv(); err != nil {
-				return fmt.Errorf("receive message from NATS: %w", err)
+				switch err {
+				case io.EOF:
+					return nil
+				default:
+					return fmt.Errorf("receive message from NATS: %w", err)
+				}
 			}
 			// Process the received message using the provided handler
 			handler(message.GetData(), message.GetSubject())
