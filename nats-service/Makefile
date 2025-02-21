@@ -11,11 +11,11 @@ help:
 # TESTING
 # =============================================================================== #
 
-## test/nats-service/integration: Run integration tests (bypass cache)
+## test/nats-service/integration: Run integration tests with race detector (bypass cache)
 .PHONY: test/nats-service/integration
 test/nats-service/integration:
 	@echo 'Running integration tests...'
-	go test -v -count=1 -p=1 ./tests/integration/...
+	CGO_ENABLED=1 go test -race -v -count=1 -p=1 ./tests/integration/...
 
 # =============================================================================== #
 # DEVELOPMENT

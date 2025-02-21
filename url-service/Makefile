@@ -11,8 +11,8 @@ help:
 # TESTING
 # =============================================================================== #
 
-## test/url-service/integration: Run integration tests
+## test/url-service/integration: Run integration tests with race detector
 .PHONY: test/url-service/integration
 test/url-service/integration:
 	@echo 'Running integration tests...'
-	go test -v -count=1 -p=1 ./tests/integration/...
+	CGO_ENABLED=1 go test -race -v -count=1 -p=1 ./tests/integration/...

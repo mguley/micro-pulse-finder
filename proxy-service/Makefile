@@ -11,11 +11,11 @@ help:
 # TESTING
 # =============================================================================== #
 
-## test/proxy-service/integration: Run integration tests (bypass cache)
+## test/proxy-service/integration: Run integration tests with race detector (bypass cache)
 .PHONY: test/proxy-service/integration
 test/proxy-service/integration:
 	@echo 'Running integration tests...'
-	go test -v -count=1 -p=1 ./tests/integration/...
+	CGO_ENABLED=1 go test -race -v -count=1 -p=1 ./tests/integration/...
 
 # =============================================================================== #
 # DEVELOPMENT
