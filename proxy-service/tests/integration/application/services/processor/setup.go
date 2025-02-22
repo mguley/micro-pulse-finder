@@ -2,7 +2,7 @@ package processor
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -11,15 +11,13 @@ import (
 func SetupTestContainer() (container *TestContainer, teardown func()) {
 	container = NewTestContainer()
 
-	var wg sync.WaitGroup
-
-	// ------------------------------------------------------------------
 	// Start the nats-service gRPC server.
-	// ------------------------------------------------------------------
-	natsInfra := container.NatsServiceInfrastructure.Get()
-	// Get the BusServer and BusService which handle incoming gRPC requests.
-	busServer := natsInfra.BusServer.Get()
-	busService := natsInfra.BusService.Get()
+	var (
+		wg         sync.WaitGroup
+		natsInfra  = container.NatsServiceInfrastructure.Get()
+		busServer  = natsInfra.BusServer.Get()
+		busService = natsInfra.BusService.Get()
+	)
 
 	// Register the BusService with the BusServer.
 	busServer.RegisterService(busService)
@@ -31,17 +29,20 @@ func SetupTestContainer() (container *TestContainer, teardown func()) {
 		busServer.Start()
 	}()
 
-	// ------------------------------------------------------------------
 	// Start the URL processor service.
-	// ------------------------------------------------------------------
-	urlProcessor := container.UrlProcessorService.Get()
-	ctx, cancel := context.WithCancel(context.Background())
+	var (
+		urlProcessor = container.UrlProcessorService.Get()
+		ctx          context.Context
+		cancel       context.CancelFunc
+	)
+	ctx, cancel = context.WithCancel(context.Background())
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if err := urlProcessor.Start(ctx); err != nil {
 			cancel()
-			log.Printf("Could not subscribe to the ProxyUrlRequest subject: %v", err)
+			fmt.Printf("Could not subscribe to the ProxyUrlRequest subject: %v", err)
 			return
 		}
 	}()
@@ -51,7 +52,7 @@ func SetupTestContainer() (container *TestContainer, teardown func()) {
 
 	// Define the teardown function to gracefully stop background services.
 	teardown = func() {
-		log.Println("Tearing down integration test environment...")
+		fmt.Println("Tearing down integration test environment...")
 		cancel()
 		busServer.GracefulStop()
 		wg.Wait()

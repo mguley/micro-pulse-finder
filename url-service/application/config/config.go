@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 )
 
@@ -21,9 +22,22 @@ func GetConfig() *Config {
 
 // Config holds configuration settings.
 type Config struct {
-	Nats NatsConfig // NATS configuration.
-	TLS  TLSConfig  // TLS configuration.
-	Env  string     // Environment type (e.g., dev, prod).
+	Nats            NatsConfig      // NATS configuration.
+	TLS             TLSConfig       // TLS configuration.
+	InboundMessage  InboundMessage  // Inbound message service configuration.
+	OutboundMessage OutboundMessage // Outbound message service configuration.
+	Env             string          // Environment type (e.g., dev, prod).
+}
+
+// OutboundMessage holds configuration settings for outbound message service.
+type OutboundMessage struct {
+	BatchSize int // BatchSize is the max. number of concurrent URL processing goroutines.
+}
+
+// InboundMessage holds configuration settings for inbound message service.
+type InboundMessage struct {
+	BatchSize  int    // BatchSize is the max. number of concurrent URL processing goroutines.
+	QueueGroup string // QueueGroup is the NATS queue group for load balancing.
 }
 
 // NatsConfig holds configuration settings for NATS.
@@ -41,10 +55,37 @@ type TLSConfig struct {
 // loadConfig loads configuration falling back to default values.
 func loadConfig() *Config {
 	return &Config{
-		Nats: loadNatsConfig(),
-		TLS:  loadTLSConfig(),
-		Env:  getEnv("ENV", "dev"),
+		Nats:            loadNatsConfig(),
+		TLS:             loadTLSConfig(),
+		InboundMessage:  loadInboundMessageConfig(),
+		OutboundMessage: loadOutboundMessageConfig(),
+		Env:             getEnv("ENV", "dev"),
 	}
+}
+
+// loadInboundMessageConfig loads inbound message service configuration.
+func loadInboundMessageConfig() InboundMessage {
+	inboundMessage := InboundMessage{
+		BatchSize:  getEnvAsInt("INBOUND_MESSAGE_BATCH_SIZE", 0),
+		QueueGroup: getEnv("INBOUND_MESSAGE_QUEUE_GROUP", ""),
+	}
+
+	checkRequiredVars("INBOUND_MESSAGE", map[string]string{
+		"INBOUND_MESSAGE_BATCH_SIZE": string(rune(inboundMessage.BatchSize)),
+	})
+	return inboundMessage
+}
+
+// loadOutboundMessageConfig loads outbound message service configuration.
+func loadOutboundMessageConfig() OutboundMessage {
+	outboundMessage := OutboundMessage{
+		BatchSize: getEnvAsInt("OUTBOUND_MESSAGE_BATCH_SIZE", 0),
+	}
+
+	checkRequiredVars("OUTBOUND_MESSAGE_BATCH_SIZE", map[string]string{
+		"OUTBOUND_MESSAGE_BATCH_SIZE": string(rune(outboundMessage.BatchSize)),
+	})
+	return outboundMessage
 }
 
 // loadTLSConfig loads TLS configuration.
@@ -79,6 +120,15 @@ func loadNatsConfig() NatsConfig {
 func getEnv(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v
+	}
+	return fallback
+}
+
+// getEnvAsInt fetches the value of an environment variable as an integer or returns a fallback.
+func getEnvAsInt(key string, fallback int) int {
+	v := getEnv(key, "")
+	if value, err := strconv.Atoi(v); err == nil {
+		return value
 	}
 	return fallback
 }

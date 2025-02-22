@@ -10,4 +10,12 @@ const (
 	// after processing the URL (e.g., the HTTP response body, or a compressed version of it).
 	// Other microservices can subscribe to this subject to receive the processed data.
 	ProxyUrlResponse = "proxy.url.response"
+
+	// UrlIncoming is the subject on which the url-service microservice listens for incoming URL messages.
+	// The background job will subscribe to this subject and process the messages accordingly.
+	UrlIncoming = "url.incoming"
+
+	// UrlOutgoing is the subject on which the url-service microservice publishes URL records.
+	// Other microservices can subscribe to this subject to receive and process these records.
+	UrlOutgoing = "url.outgoing"
 )
