@@ -24,35 +24,25 @@ lint: install/linter
 	@find ./nats-service ./proxy-service ./url-service ./shared -name '*.go' -exec dirname {} \; | sort -u | xargs $(shell go env GOPATH)/bin/golangci-lint run
 
 ## tidy: format all .go files and tidy module dependencies
+SERVICES = nats-service proxy-service url-service shared
+
 .PHONY: tidy
 tidy:
-	@echo 'Tidying root module dependencies...'
-	(cd ./ && go mod tidy)
-	@echo 'Verifying root module dependencies...'
-	(cd ./ && go mod verify)
-
-	@echo 'Tidying nats-service module dependencies...'
-	(cd ./nats-service && go mod tidy)
-	@echo 'Verifying nats-service module dependencies...'
-	(cd ./nats-service && go mod verify)
-
-	@echo 'Tidying proxy-service module dependencies...'
-	(cd ./proxy-service && go mod tidy)
-	@echo 'Verifying proxy-service module dependencies...'
-	(cd ./proxy-service && go mod verify)
-
-	@echo 'Tidying url-service module dependencies...'
-	(cd ./url-service && go mod tidy)
-	@echo 'Verifying url-service module dependencies...'
-	(cd ./url-service && go mod verify)
-
-	@echo 'Tidying shared module dependencies...'
-	(cd ./shared && go mod tidy)
-	@echo 'Verifying shared module dependencies...'
-	(cd ./shared && go mod verify)
-
-	@echo 'Vendoring workspace dependencies...'
+	@for service in $(SERVICES); do \
+		echo "Tidying and verifying $$service..."; \
+		(cd $$service && go mod tidy && go mod verify); \
+	done
+	@echo "Vendoring workspace dependencies..."
 	go work vendor
+
+## vet: Run go vet on all Go packages
+.PHONY: vet
+vet:
+	@echo "Running go vet on all microservices..."
+	@for service in nats-service proxy-service shared url-service; do \
+		echo "Running go vet in $$service..."; \
+		(cd $$service && go vet ./...); \
+	done
 
 # =============================================================================== #
 # RPC
