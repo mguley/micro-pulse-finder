@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os/signal"
 	"proxy-service/application"
 	"syscall"
@@ -10,43 +10,38 @@ import (
 )
 
 func main() {
-	app := application.NewContainer()
-	urlProcessor := app.UrlProcessorService.Get()
+	var (
+		app             = application.NewContainer()
+		urlProcessor    = app.UrlProcessorService.Get()
+		connectionPool  = app.Infrastructure.Get().ConnectionPool.Get()
+		natsClient      = app.NatsGrpcClient.Get()
+		gracePeriod     = time.Duration(2) * time.Second
+		processorCtx    context.Context
+		processorCancel context.CancelFunc
+	)
 
-	// Create a context that will be canceled on SIGINT or SIGTERM.
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	processorCtx, processorCancel = signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer processorCancel()
 
 	// Start the URL processor, it will listen for messages until the context is canceled.
-	done := make(chan struct{})
 	go func() {
-		if err := urlProcessor.Start(ctx); err != nil {
-			log.Printf("Error running URL processor: %v", err)
+		if err := urlProcessor.Start(processorCtx); err != nil {
+			fmt.Printf("Error running URL processor: %v", err)
 		}
-		close(done)
 	}()
 
-	// Wait until either a termination signal is received or the URL processor finishes.
-	select {
-	case <-ctx.Done():
-		log.Println("Shutdown signal received, commencing graceful shutdown...")
-	case <-done:
-		log.Println("URL processor has finished processing messages.")
-	}
-
-	// Allow in-flight requests a short period to finish.
-	gracePeriod := time.Duration(2) * time.Second
-	log.Printf("Waiting %v for in-flight operations to complete...", gracePeriod)
+	<-processorCtx.Done()
+	fmt.Println("Shutdown signal received, commencing graceful shutdown...")
+	fmt.Printf("Waiting %v for in-flight operations to complete...\n", gracePeriod)
 	time.Sleep(gracePeriod)
 
 	// Clean up resources.
-	log.Println("Shutting down connection pool...")
-	app.Infrastructure.Get().ConnectionPool.Get().Shutdown()
+	fmt.Println("Shutting down connection pool...")
+	connectionPool.Shutdown()
 
-	log.Println("Closing NATS client connection...")
-	if err := app.NatsGrpcClient.Get().Close(); err != nil {
-		log.Printf("Error closing NATS client: %v", err)
+	fmt.Println("Closing NATS client connection...")
+	if err := natsClient.Close(); err != nil {
+		fmt.Printf("Error closing NATS client: %v", err)
 	}
-
-	log.Println("Service gracefully shutdown")
+	fmt.Println("Service gracefully shutdown")
 }

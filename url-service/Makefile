@@ -16,3 +16,17 @@ help:
 test/url-service/integration:
 	@echo 'Running integration tests...'
 	CGO_ENABLED=1 go test -race -v -count=1 -p=1 ./tests/integration/...
+
+# =============================================================================== #
+# DEVELOPMENT
+# =============================================================================== #
+
+## run/inbound-message-service: Run inbound-message-service.
+.PHONY: run/inbound-message-service
+run/inbound-message-service:
+	go run ./cmd/inbound
+
+## run/outbound-message-service: Run outbound-message-service.
+.PHONY: run/outbound-message-service
+run/outbound-message-service:
+	go run ./cmd/outbound
