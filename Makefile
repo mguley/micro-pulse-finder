@@ -39,7 +39,7 @@ tidy:
 .PHONY: vet
 vet:
 	@echo "Running go vet on all microservices..."
-	@for service in nats-service proxy-service shared url-service; do \
+	@for service in $(SERVICES); do \
 		echo "Running go vet in $$service..."; \
 		(cd $$service && go vet ./...); \
 	done
