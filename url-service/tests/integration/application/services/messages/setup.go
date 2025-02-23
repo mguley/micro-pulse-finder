@@ -36,19 +36,33 @@ func SetupTestContainer(t *testing.T) (container *TestContainer, teardown func()
 	// Start the inbound message service.
 	var (
 		inboundMessageService = container.InboundMessageService.Get()
-		ctx                   context.Context
-		cancel                context.CancelFunc
+		inboundCtx            context.Context
+		inboundCancel         context.CancelFunc
 	)
-	ctx, cancel = context.WithCancel(context.Background())
+	inboundCtx, inboundCancel = context.WithCancel(context.Background())
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := inboundMessageService.Start(ctx); err != nil {
-			cancel()
+		if err := inboundMessageService.Start(inboundCtx); err != nil {
+			inboundCancel()
 			fmt.Printf("Could not start inbound message service: %v\n", err)
 			return
 		}
+	}()
+
+	// Start the outbound message service.
+	var (
+		outboundMessageService = container.OutboundMessageService.Get()
+		outboundCtx            context.Context
+		outboundCancel         context.CancelFunc
+	)
+	outboundCtx, outboundCancel = context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		outboundMessageService.Start(outboundCtx)
 	}()
 
 	// Give the background services a moment to start.
@@ -57,7 +71,8 @@ func SetupTestContainer(t *testing.T) (container *TestContainer, teardown func()
 	// Define the teardown function to gracefully stop background services.
 	teardown = func() {
 		fmt.Println("Tearing down integration test environment...")
-		cancel()
+		inboundCancel()
+		outboundCancel()
 		busServer.GracefulStop()
 		wg.Wait()
 	}

@@ -59,11 +59,12 @@ func (s *InboundMessageService) messageHandler(data []byte, subject string) {
 		var (
 			unmarshalErr error
 			err          error
-			url          = &entities.Url{}
+			url          = entities.GetUrl()
 			now          = time.Now()
 			saveCtx      context.Context
 			cancel       context.CancelFunc
 		)
+		defer url.Release()
 
 		saveCtx, cancel = context.WithTimeout(context.Background(), time.Duration(10)*time.Second)
 		defer cancel()

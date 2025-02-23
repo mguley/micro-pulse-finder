@@ -7,6 +7,7 @@ import (
 	sharedConfig "shared/mongodb/application/config"
 	sharedDomain "shared/mongodb/domain/entities"
 	"shared/mongodb/infrastructure/mongodb"
+	"time"
 	urlServiceConfig "url-service/application/config"
 	"url-service/application/services/messages"
 	urlServiceDomain "url-service/domain/entities"
@@ -24,6 +25,7 @@ type TestContainer struct {
 	NatsGrpcValidator         dependency.LazyDependency[nats_service.Validator]
 	NatsGrpcClient            dependency.LazyDependency[*nats_service.NatsClient]
 	InboundMessageService     dependency.LazyDependency[*messages.InboundMessageService]
+	OutboundMessageService    dependency.LazyDependency[*messages.OutboundMessageService]
 	NatsServiceInfrastructure dependency.LazyDependency[*natsServiceInfrastructure.Container]
 }
 
@@ -94,6 +96,17 @@ func NewTestContainer() *TestContainer {
 				queueGroup    = c.Config.Get().InboundMessage.QueueGroup
 			)
 			return messages.NewInboundMessageService(natsClient, urlRepository, batchSize, queueGroup)
+		},
+	}
+	c.OutboundMessageService = dependency.LazyDependency[*messages.OutboundMessageService]{
+		InitFunc: func() *messages.OutboundMessageService {
+			var (
+				natsClient    = c.NatsGrpcClient.Get()
+				urlRepository = c.MongoRepository.Get()
+				interval      = time.Duration(5) * time.Second
+				batchSize     = c.Config.Get().OutboundMessage.BatchSize
+			)
+			return messages.NewOutboundMessageService(natsClient, urlRepository, interval, batchSize)
 		},
 	}
 
