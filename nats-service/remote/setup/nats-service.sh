@@ -49,24 +49,31 @@ create_user() {
 # ------------------------------------------------------------------------------
 # set_environment_variables
 #
-# Sets essential environment variables in /etc/environment for global access.
+# Sets essential environment variables in /etc/service/nats-service for global access.
 # ------------------------------------------------------------------------------
 set_environment_variables() {
-      echo "Adding environment variables to /etc/environment..."
-      {
-        # NATS
-        echo "NATS_HOST=${NATS_HOST}"
-        echo "NATS_PORT=${NATS_PORT}"
+    local env_file="/etc/service/nats-service"
+    echo "Writing nats-service environment variables to ${env_file}..."
+    mkdir -p "$(dirname "${env_file}")"
+    cat <<EOF > "${env_file}"
+# ====================================================
+# nats-service Environment Variables
+# ====================================================
 
-        # TLS
-        echo "TLS_CERTIFICATE=${TLS_CERTIFICATE}"
-        echo "TLS_KEY=${TLS_KEY}"
+# NATS server configuration
+NATS_HOST=${NATS_HOST}
+NATS_PORT=${NATS_PORT}
 
-        # RPC
-        echo "NATS_RPC_SERVER_PORT=${NATS_RPC_SERVER_PORT}"
-        echo "ENV=${ENV}"
+# TLS configuration for secure connections
+TLS_CERTIFICATE=${TLS_CERTIFICATE}
+TLS_KEY=${TLS_KEY}
 
-      } >> /etc/environment
+# RPC configuration for the NATS service
+NATS_RPC_SERVER_PORT=${NATS_RPC_SERVER_PORT}
+
+# Application environment
+ENV=${ENV}
+EOF
 }
 
 # ------------------------------------------------------------------------------
