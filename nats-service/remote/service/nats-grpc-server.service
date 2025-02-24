@@ -2,8 +2,13 @@
 # Name for the service, which helps identify it in logs or service management tools.
 Description=Nats gRPC server
 
+# Ensure the network is online
 Requires=network-online.target
 After=network-online.target
+
+# Ensure the NATS server is running before starting this service
+Requires=nats.service
+After=nats.service
 
 # Configure service start rate limiting.
 # If the service is (re)started more than 5 times in 600 seconds, then don't permit it to start anymore.
@@ -18,8 +23,8 @@ Type=simple
 User=nats-service
 # The service will run with the `nats-service` group permissions.
 Group=nats-service
-# Load environment variables from the /etc/environment file.
-EnvironmentFile=/etc/environment
+# Load environment variables from the /etc/service/nats-service file.
+EnvironmentFile=/etc/service/nats-service
 # Working directory for the server. Any relative paths will be based on this directory.
 WorkingDirectory=/opt/nats-grpc-server
 # Command to start the Nats gRPC server.

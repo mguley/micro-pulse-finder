@@ -8,6 +8,8 @@ set -euo pipefail
 
 USERNAME="proxy-service"
 
+NATS_HOST=127.0.0.1
+NATS_PORT=4222
 NATS_RPC_HOST=127.0.0.1
 NATS_RPC_PORT=61355
 
@@ -61,37 +63,51 @@ create_user() {
 # ------------------------------------------------------------------------------
 # set_environment_variables
 #
-# Sets essential environment variables in /etc/environment for global access.
+# Sets essential environment variables in /etc/service/proxy-service for global access.
 # ------------------------------------------------------------------------------
 set_environment_variables() {
-      echo "Adding environment variables to /etc/environment..."
-      {
-        # NATS RPC
-        echo "NATS_RPC_HOST=${NATS_RPC_HOST}"
-        echo "NATS_RPC_PORT=${NATS_RPC_PORT}"
+    local env_file="/etc/service/proxy-service"
+    echo "Writing proxy-service environment variables to ${env_file}..."
+    mkdir -p "$(dirname "${env_file}")"
 
-        # TLS
-        echo "TLS_CERTIFICATE=${TLS_CERTIFICATE}"
-        echo "TLS_KEY=${TLS_KEY}"
+    cat <<EOF > "${env_file}"
+# ====================================================
+# proxy-service Environment Variables
+# ====================================================
 
-        # RPC
-        echo "PROXY_RPC_SERVER_PORT=${PROXY_RPC_SERVER_PORT}"
-        echo "ENV=${ENV}"
+# NATS server configuration
+NATS_HOST=${NATS_HOST}
+NATS_PORT=${NATS_PORT}
 
-        # Proxy
-        echo "PROXY_HOST=${PROXY_HOST}"
-        echo "PROXY_PORT=${PROXY_PORT}"
-        echo "PROXY_CONTROL_PASSWORD=${PROXY_CONTROL_PASSWORD}"
-        echo "PROXY_CONTROL_PORT=${PROXY_CONTROL_PORT}"
-        echo "PROXY_URL=${PROXY_URL}"
+# NATS RPC configuration
+NATS_RPC_HOST=${NATS_RPC_HOST}
+NATS_RPC_PORT=${NATS_RPC_PORT}
 
-        echo "POOL_MAX_SIZE=${POOL_MAX_SIZE}"
-        echo "POOL_REFRESH_INTERVAL=${POOL_REFRESH_INTERVAL}"
+# TLS configuration for secure connections
+TLS_CERTIFICATE=${TLS_CERTIFICATE}
+TLS_KEY=${TLS_KEY}
 
-        echo "URL_PROCESSOR_BATCH_SIZE=${URL_PROCESSOR_BATCH_SIZE}"
-        echo "URL_PROCESSOR_QUEUE_GROUP=${URL_PROCESSOR_QUEUE_GROUP}"
+# RPC configuration for the proxy service
+PROXY_RPC_SERVER_PORT=${PROXY_RPC_SERVER_PORT}
 
-      } >> /etc/environment
+# Proxy server configuration
+PROXY_HOST=${PROXY_HOST}
+PROXY_PORT=${PROXY_PORT}
+PROXY_CONTROL_PASSWORD=${PROXY_CONTROL_PASSWORD}
+PROXY_CONTROL_PORT=${PROXY_CONTROL_PORT}
+PROXY_URL=${PROXY_URL}
+
+# Connection Pool configuration
+POOL_MAX_SIZE=${POOL_MAX_SIZE}
+POOL_REFRESH_INTERVAL=${POOL_REFRESH_INTERVAL}
+
+# URL Processor configuration
+URL_PROCESSOR_BATCH_SIZE=${URL_PROCESSOR_BATCH_SIZE}
+URL_PROCESSOR_QUEUE_GROUP=${URL_PROCESSOR_QUEUE_GROUP}
+
+# Application environment
+ENV=${ENV}
+EOF
 }
 
 # ------------------------------------------------------------------------------

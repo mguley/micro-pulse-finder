@@ -1,6 +1,6 @@
 [Unit]
 # Name for the service, which helps identify it in logs or service management tools.
-Description=Url processor service
+Description=Outbound Message Service
 
 # Ensure the network is online
 Requires=network-online.target
@@ -19,16 +19,16 @@ StartLimitBurst=5
 [Service]
 # Specifies that the service should be started by executing the binary directly.
 Type=simple
-# The service will run as the `proxy-service` user, ensuring that it doesn't run as root.
-User=proxy-service
-# The service will run with the `proxy-service` group permissions.
-Group=proxy-service
-# Load environment variables from the /etc/service/proxy-service file.
-EnvironmentFile=/etc/service/proxy-service
+# The service will run as the `url-service` user, ensuring that it doesn't run as root.
+User=url-service
+# The service will run with the `url-service` group permissions.
+Group=url-service
+# Load environment variables from the /etc/service/url-service file.
+EnvironmentFile=/etc/service/url-service
 # Working directory for the service. Any relative paths will be based on this directory.
-WorkingDirectory=/opt/url-processor-service
+WorkingDirectory=/opt/outbound-message-service
 # Command to start the Url processor service.
-ExecStart=/opt/url-processor-service/url-processor-service-o
+ExecStart=/opt/outbound-message-service/outbound-message-service-o
 
 # Security hardening options
 # Disallows the service from gaining new privileges through exec().

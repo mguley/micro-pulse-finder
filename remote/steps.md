@@ -38,6 +38,13 @@ rsync -rPv --delete proxy-service/remote/setup root@<INSTANCE-IP>:/root/remote/
 ssh -t root@<INSTANCE-IP> "bash /root/remote/setup/proxy-service.sh"
 ```
 
+Url-service
+```bash
+rsync -rPv --delete url-service/remote/setup root@<INSTANCE-IP>:/root/remote/
+```
+```bash
+ssh -t root@<INSTANCE-IP> "bash /root/remote/setup/url-service.sh"
+```
 ---
 
 Nats-service user
@@ -50,9 +57,14 @@ Proxy-service user
 ssh proxy-service@<INSTANCE-IP>
 ```
 
+Url-service user
+```bash
+ssh url-service@<INSTANCE-IP>
+```
+
 ---
 
-Deploy: Nats-service, Proxy-service
+Deploy: Nats-service, Proxy-service, Url-service
 ```bash
 make remote/deploy
 ```
