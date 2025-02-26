@@ -8,6 +8,7 @@ import (
 	"nats-service/infrastructure/grpc/handler"
 	"nats-service/infrastructure/grpc/validators"
 	"shared/dependency"
+	"shared/observability/nats-service/metrics"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -15,6 +16,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Metrics    dependency.LazyDependency[*metrics.Metrics]
 	NatsClient dependency.LazyDependency[*broker.Client]
 	Operations dependency.LazyDependency[*services.Operations]
 	Validator  dependency.LazyDependency[validators.Validator]
@@ -25,6 +27,9 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Metrics = dependency.LazyDependency[*metrics.Metrics]{
+		InitFunc: metrics.NewMetrics,
+	}
 	c.NatsClient = dependency.LazyDependency[*broker.Client]{
 		InitFunc: func() *broker.Client {
 			var (
@@ -53,7 +58,7 @@ func NewTestContainer() *TestContainer {
 				DisconnectedErrCB: disconnectErrHandler,
 				AllowReconnect:    true,
 			}
-			return broker.NewClient(options)
+			return broker.NewClient(options, c.Metrics.Get())
 		},
 	}
 	c.Operations = dependency.LazyDependency[*services.Operations]{
@@ -65,7 +70,7 @@ func NewTestContainer() *TestContainer {
 			if conn, err = c.NatsClient.Get().Connect(); err != nil {
 				panic(err)
 			}
-			return services.NewOperations(conn)
+			return services.NewOperations(conn, c.Metrics.Get())
 		},
 	}
 	c.Validator = dependency.LazyDependency[validators.Validator]{

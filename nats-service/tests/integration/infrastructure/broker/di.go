@@ -5,6 +5,7 @@ import (
 	"nats-service/domain/entities"
 	"nats-service/infrastructure/broker"
 	"shared/dependency"
+	"shared/observability/nats-service/metrics"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -12,6 +13,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Metrics    dependency.LazyDependency[*metrics.Metrics]
 	NatsClient dependency.LazyDependency[*broker.Client]
 }
 
@@ -19,6 +21,9 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Metrics = dependency.LazyDependency[*metrics.Metrics]{
+		InitFunc: metrics.NewMetrics,
+	}
 	c.NatsClient = dependency.LazyDependency[*broker.Client]{
 		InitFunc: func() *broker.Client {
 			var (
@@ -47,7 +52,7 @@ func NewTestContainer() *TestContainer {
 				DisconnectedErrCB: disconnectErrHandler,
 				AllowReconnect:    true,
 			}
-			return broker.NewClient(options)
+			return broker.NewClient(options, c.Metrics.Get())
 		},
 	}
 
