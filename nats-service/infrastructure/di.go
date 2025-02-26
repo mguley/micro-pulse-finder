@@ -10,6 +10,7 @@ import (
 	"nats-service/infrastructure/grpc/server"
 	"nats-service/infrastructure/grpc/validators"
 	"shared/dependency"
+	"shared/observability/nats-service/metrics"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -18,6 +19,7 @@ import (
 // Container provides a lazily initialized set of dependencies.
 type Container struct {
 	Config     dependency.LazyDependency[*config.Config]
+	Metrics    dependency.LazyDependency[*metrics.Metrics]
 	NatsClient dependency.LazyDependency[*broker.Client]
 	Operations dependency.LazyDependency[*services.Operations]
 	Validator  dependency.LazyDependency[validators.Validator]
@@ -32,6 +34,9 @@ func NewContainer() *Container {
 	c.Config = dependency.LazyDependency[*config.Config]{
 		InitFunc: config.GetConfig,
 	}
+	c.Metrics = dependency.LazyDependency[*metrics.Metrics]{
+		InitFunc: metrics.NewMetrics,
+	}
 	c.NatsClient = dependency.LazyDependency[*broker.Client]{
 		InitFunc: func() *broker.Client {
 			var (
@@ -41,9 +46,11 @@ func NewContainer() *Container {
 				maxReconnect     = 5
 				timeout          = time.Duration(5) * time.Second
 				reconnectHandler = func(conn *nats.Conn) {
+					c.Metrics.Get().Connection.NATSConnectionStatus.Set(1)
 					log.Println("Reconnected to NATS at", conn.ConnectedUrl())
 				}
 				disconnectErrHandler = func(conn *nats.Conn, err error) {
+					c.Metrics.Get().Connection.NATSConnectionStatus.Set(0)
 					log.Println("Disconnected from NATS due to", err)
 				}
 			)
@@ -60,7 +67,7 @@ func NewContainer() *Container {
 				DisconnectedErrCB: disconnectErrHandler,
 				AllowReconnect:    true,
 			}
-			return broker.NewClient(options)
+			return broker.NewClient(options, c.Metrics.Get())
 		},
 	}
 	c.Operations = dependency.LazyDependency[*services.Operations]{
@@ -72,7 +79,7 @@ func NewContainer() *Container {
 			if conn, err = c.NatsClient.Get().Connect(); err != nil {
 				panic(err)
 			}
-			return services.NewOperations(conn)
+			return services.NewOperations(conn, c.Metrics.Get())
 		},
 	}
 	c.Validator = dependency.LazyDependency[validators.Validator]{

@@ -26,6 +26,11 @@ test/nats-service/integration:
 run/nats-grpc-server:
 	go run ./cmd/grpc
 
+## run/nats-metrics-server: Run NATS metrics server.
+.PHONY: run/nats-metrics-server
+run/nats-metrics-server:
+	go run ./cmd/metrics
+
 # =============================================================================== #
 # BUILD
 # =============================================================================== #

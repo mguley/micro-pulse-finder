@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s  # Collect metrics every 5 seconds
+
+scrape_configs:
+  - job_name: "nats-service"
+    metrics_path: "/nats-service/metrics"
+    static_configs:
+      - targets: ["172.17.0.1:50555"]

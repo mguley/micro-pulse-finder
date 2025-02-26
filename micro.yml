@@ -38,5 +38,23 @@ services:
     environment:
       - TF_LOG=TRACE
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./shared/observability/docker/prometheus/config.yml:/etc/prometheus/config.yml
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/config.yml"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   micro-pulse-finder:
