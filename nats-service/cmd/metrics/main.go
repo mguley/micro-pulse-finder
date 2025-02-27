@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"nats-service/application"
 	"net/http"
 	"os/signal"
@@ -14,15 +13,16 @@ import (
 )
 
 func main() {
-	log.Println("Starting NATS metrics server...")
-
 	var (
+		app      = application.NewContainer()
 		mux      = http.NewServeMux()
-		registry = application.NewContainer().Infrastructure.Get().Metrics.Get().Registry
+		registry = app.Infrastructure.Get().Metrics.Get().Registry
+		logger   = app.Infrastructure.Get().Logger.Get()
 		server   *http.Server
 		port     = ":50555"
 	)
 
+	logger.Info("Starting NATS metrics server...")
 	mux.Handle("/nats-service/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 	server = &http.Server{
 		Addr:              port,
@@ -36,19 +36,19 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("Metrics server is listening on %s...", server.Addr)
+		logger.Info("Metrics server is listening ...", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("Metrics server error: %v", err)
+			logger.Error("Metrics server error", "error", err)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Println("Shutdown signal received. Shutting down metrics server...")
+	logger.Info("Shutdown signal received. Shutting down metrics server...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Duration(10)*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Metrics server shutdown error: %v", err)
+		logger.Error("Metrics server shutdown error", "error", err)
 	}
 }

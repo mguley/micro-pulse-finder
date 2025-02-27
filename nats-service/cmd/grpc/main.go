@@ -3,14 +3,17 @@ package main
 import "nats-service/application"
 
 func main() {
-	app := application.NewContainer().Infrastructure.Get()
-	busServer := app.BusServer.Get()
-	busService := app.BusService.Get()
+	var (
+		app        = application.NewContainer().Infrastructure.Get()
+		logger     = app.Logger.Get()
+		busServer  = app.BusServer.Get()
+		busService = app.BusService.Get()
+	)
 
-	// Register
+	logger.Debug("Registering bus service with gRPC server...")
 	busServer.RegisterService(busService)
 
-	// Start
+	logger.Info("Starting gRPC server...")
 	busServer.Start()
 	busServer.WaitForShutdown()
 }

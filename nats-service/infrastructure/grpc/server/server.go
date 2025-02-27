@@ -3,7 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -20,10 +20,11 @@ type BusServer struct {
 	listener   net.Listener // The network listener for the server.
 	port       string       // The port the server listens on.
 	env        string       // The environment (e.g., "prod" or "dev").
+	logger     *slog.Logger
 }
 
 // NewBusServer creates a new instance of BusServer based on the provided configuration.
-func NewBusServer(env, port, certFile, keyFile string) (busServer *BusServer, err error) {
+func NewBusServer(env, port, certFile, keyFile string, logger *slog.Logger) (busServer *BusServer, err error) {
 	var (
 		grpcServer   *grpc.Server
 		serverConfig *Config
@@ -53,6 +54,7 @@ func NewBusServer(env, port, certFile, keyFile string) (busServer *BusServer, er
 		listener:   listener,
 		port:       port,
 		env:        env,
+		logger:     logger,
 	}, nil
 }
 
@@ -63,10 +65,11 @@ func (s *BusServer) RegisterService(service natsservicev1.BusServiceServer) {
 
 // Start starts the gRPC server and begins listening for incoming requests.
 func (s *BusServer) Start() {
-	log.Printf("Starting the Bus gRPC server on %s (env: %s)...", s.listener.Addr(), s.env)
+	s.logger.Info("Starting the Bus gRPC server...", "address", s.listener.Addr(), "env", s.env)
 	go func() {
 		if err := s.grpcServer.Serve(s.listener); err != nil {
-			log.Fatalf("Bus gRPC server failed to serve: %v", err)
+			s.logger.Error("Bus gRPC server failed to serve", "error", err)
+			panic(err)
 		}
 	}()
 }
@@ -85,9 +88,9 @@ func (s *BusServer) WaitForShutdown() {
 		sig := <-signalChan
 		defer close(signalChan)
 
-		log.Printf("Received signal: %s. Initiating shutdown...", sig)
+		s.logger.Info("Received shutdown signal. Initiating shutdown...", "signal", sig)
 		s.grpcServer.GracefulStop()
-		log.Println("Proxy gRPC server stopped gracefully.")
+		s.logger.Info("Bus gRPC server stopped gracefully")
 
 		defer close(done)
 	}()
