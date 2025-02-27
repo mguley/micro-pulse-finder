@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"nats-service/application/services"
 	"nats-service/infrastructure/grpc/validators"
 	natsservicev1 "shared/proto/nats-service/gen"
@@ -12,9 +13,10 @@ type BusService struct {
 	natsservicev1.UnimplementedBusServiceServer
 	operations *services.Operations
 	validator  validators.Validator
+	logger     *slog.Logger
 }
 
 // NewBusService creates a new instance of BusService.
-func NewBusService(operations *services.Operations, validator validators.Validator) *BusService {
-	return &BusService{operations: operations, validator: validator}
+func NewBusService(operations *services.Operations, validator validators.Validator, logger *slog.Logger) *BusService {
+	return &BusService{operations: operations, validator: validator, logger: logger}
 }

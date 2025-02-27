@@ -24,6 +24,7 @@ func NewContainer() *Container {
 	c.Operations = dependency.LazyDependency[*services.Operations]{
 		InitFunc: func() *services.Operations {
 			var (
+				logger  = c.Infrastructure.Get().Logger.Get()
 				metrics = c.Infrastructure.Get().Metrics.Get()
 				conn    *nats.Conn
 				err     error
@@ -31,7 +32,7 @@ func NewContainer() *Container {
 			if conn, err = c.Infrastructure.Get().NatsClient.Get().Connect(); err != nil {
 				panic(err)
 			}
-			return services.NewOperations(conn, metrics)
+			return services.NewOperations(conn, metrics, logger)
 		},
 	}
 

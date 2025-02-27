@@ -15,6 +15,9 @@ func (s *BusService) Subscribe(
 	server grpc.ServerStreamingServer[natsservicev1.SubscribeResponse],
 ) (err error) {
 	if result := s.validator.ValidateSubscribeRequest(request); result != nil {
+		s.logger.Error(
+			"Subscribe request failed due to validation",
+			"subject", request.GetSubject(), "error", result)
 		return result
 	}
 
@@ -28,6 +31,7 @@ func (s *BusService) Subscribe(
 	)
 
 	if sub, err = s.operations.Subscribe(subject, queueGroup, handler); err != nil {
+		s.logger.Error("Subscribe operation failed", "subject", subject, "error", err)
 		return fmt.Errorf("could not subscribe to subject: %s: %w", request.Subject, err)
 	}
 
@@ -42,11 +46,13 @@ func (s *BusService) Subscribe(
 		select {
 		case <-ctx.Done():
 			// The client closed the stream or the server is shutting down.
+			s.logger.Info("Context canceled, shutting down subscription.")
 			return ctx.Err()
 
 		case msg := <-messagesCh:
 			if msg == nil {
 				// Channel closed, end the stream.
+				s.logger.Info("Message channel closed, end the stream.")
 				return nil
 			}
 
@@ -56,6 +62,7 @@ func (s *BusService) Subscribe(
 				Subject: msg.Subject,
 			}
 			if err = server.Send(response); err != nil {
+				s.logger.Error("Send response failed", "subject", response.Subject, "error", err)
 				return fmt.Errorf("could not send message to stream: %w", err)
 			}
 		}

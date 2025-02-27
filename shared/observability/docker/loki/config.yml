@@ -1,0 +1,48 @@
+auth_enabled: false  # Disable authentication since we are running Loki locally
+
+server:
+  http_listen_port: 3100  # The port where Loki will be accessible
+
+common:
+  ring:
+    kvstore:
+      store: inmemory  # Use in-memory key-value store for the ring, suitable for single-node setups
+  instance_addr: 127.0.0.1  # Address of the Loki instance
+  path_prefix: /loki  # Directory prefix for storing Loki data
+  replication_factor: 1 # Set Loki replication factor to 1 (single instance mode)
+
+schema_config:
+  configs:
+    - from: 2025-01-01  # Start date for this schema configuration
+      store: tsdb  # Storage engine to use; 'tsdb' is recommended for new deployments
+      object_store: filesystem  # Store chunks on the local filesystem
+      schema: v13  # Schema version
+      index:
+        prefix: index_  # Prefix for index files
+        period: 24h  # Duration for which a single index file is kept
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/index  # Directory for active index files
+    cache_location: /loki/index_cache  # Cache directory for the index shipper
+  filesystem:
+    directory: /loki/chunks  # Directory to store chunk files
+
+limits_config:
+  reject_old_samples: true  # Reject log entries older than the max age
+  reject_old_samples_max_age: 168h  # Maximum age (7 days) for log entries to be accepted
+  allow_structured_metadata: false  # Disable structured metadata to avoid schema upgrade requirements
+  max_global_streams_per_user: 0  # Allow unlimited streams
+  ingestion_rate_mb: 10  # Increase ingestion rate
+  ingestion_burst_size_mb: 20  # Allow larger bursts
+
+compactor:
+  working_directory: /loki/compactor  # Directory for compactor to store its state
+
+table_manager:
+  retention_deletes_enabled: false  # Disable automatic deletion of old data
+  retention_period: 0s  # Retention period for the data; '0s' means no automatic deletion
+
+ingester:
+  wal:
+    dir: /loki/wal  # Directory for the Write-Ahead Log (WAL) to provide durability

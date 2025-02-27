@@ -2,8 +2,10 @@ package broker
 
 import (
 	"log"
+	"log/slog"
 	"nats-service/domain/entities"
 	"nats-service/infrastructure/broker"
+	"os"
 	"shared/dependency"
 	"shared/observability/nats-service/metrics"
 	"time"
@@ -13,6 +15,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Logger     dependency.LazyDependency[*slog.Logger]
 	Metrics    dependency.LazyDependency[*metrics.Metrics]
 	NatsClient dependency.LazyDependency[*broker.Client]
 }
@@ -21,12 +24,18 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Logger = dependency.LazyDependency[*slog.Logger]{
+		InitFunc: func() *slog.Logger {
+			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+		},
+	}
 	c.Metrics = dependency.LazyDependency[*metrics.Metrics]{
 		InitFunc: metrics.NewMetrics,
 	}
 	c.NatsClient = dependency.LazyDependency[*broker.Client]{
 		InitFunc: func() *broker.Client {
 			var (
+				logger           = c.Logger.Get()
 				address          string
 				err              error
 				reconnectWait    = time.Duration(5) * time.Second
@@ -52,7 +61,7 @@ func NewTestContainer() *TestContainer {
 				DisconnectedErrCB: disconnectErrHandler,
 				AllowReconnect:    true,
 			}
-			return broker.NewClient(options, c.Metrics.Get())
+			return broker.NewClient(options, c.Metrics.Get(), logger)
 		},
 	}
 

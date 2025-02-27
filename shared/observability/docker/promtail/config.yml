@@ -1,0 +1,21 @@
+server:
+  # Port where Promtail's web interface and API will be available
+  http_listen_port: 9080
+  grpc_listen_port: 0  # Disable gRPC since we're not using it
+
+positions:
+  # Track the last read position in log files (so Promtail doesn't re-read old logs)
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push  # Send logs to Loki
+
+scrape_configs:
+  - job_name: "nats-service-logs"
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nats-service-logs  # This label will be used in Loki to identify logs
+          service: nats-service
+          __path__: /logs/*.log  # Collect logs from Go microservice
