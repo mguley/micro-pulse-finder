@@ -1,7 +1,9 @@
 package messages
 
 import (
+	"log/slog"
 	natsServiceInfrastructure "nats-service/infrastructure"
+	"os"
 	"shared/dependency"
 	"shared/grpc/clients/nats_service"
 	sharedConfig "shared/mongodb/application/config"
@@ -19,6 +21,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Logger                    dependency.LazyDependency[*slog.Logger]
 	Config                    dependency.LazyDependency[*urlServiceConfig.Config]
 	MongoClient               dependency.LazyDependency[*mongodb.Client]
 	MongoRepository           dependency.LazyDependency[interfaces.UrlRepository]
@@ -33,6 +36,11 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Logger = dependency.LazyDependency[*slog.Logger]{
+		InitFunc: func() *slog.Logger {
+			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+		},
+	}
 	c.Config = dependency.LazyDependency[*urlServiceConfig.Config]{
 		InitFunc: urlServiceConfig.GetConfig,
 	}
@@ -51,6 +59,7 @@ func NewTestContainer() *TestContainer {
 	c.MongoRepository = dependency.LazyDependency[interfaces.UrlRepository]{
 		InitFunc: func() interfaces.UrlRepository {
 			var (
+				logger         = c.Logger.Get()
 				mongoClient    *mongo.Client
 				collection     *mongo.Collection
 				collectionName = sharedConfig.GetConfig().Mongo.Collection
@@ -61,7 +70,7 @@ func NewTestContainer() *TestContainer {
 				panic(err)
 			}
 			collection = mongoClient.Database(dbName).Collection(collectionName)
-			return url.NewRepository(mongoClient, collection)
+			return url.NewRepository(mongoClient, collection, logger)
 		},
 	}
 	c.NatsGrpcValidator = dependency.LazyDependency[nats_service.Validator]{
@@ -90,23 +99,25 @@ func NewTestContainer() *TestContainer {
 	c.InboundMessageService = dependency.LazyDependency[*messages.InboundMessageService]{
 		InitFunc: func() *messages.InboundMessageService {
 			var (
+				logger        = c.Logger.Get()
 				natsClient    = c.NatsGrpcClient.Get()
 				urlRepository = c.MongoRepository.Get()
 				batchSize     = c.Config.Get().InboundMessage.BatchSize
 				queueGroup    = c.Config.Get().InboundMessage.QueueGroup
 			)
-			return messages.NewInboundMessageService(natsClient, urlRepository, batchSize, queueGroup)
+			return messages.NewInboundMessageService(natsClient, urlRepository, batchSize, queueGroup, logger)
 		},
 	}
 	c.OutboundMessageService = dependency.LazyDependency[*messages.OutboundMessageService]{
 		InitFunc: func() *messages.OutboundMessageService {
 			var (
+				logger        = c.Logger.Get()
 				natsClient    = c.NatsGrpcClient.Get()
 				urlRepository = c.MongoRepository.Get()
 				interval      = time.Duration(5) * time.Second
 				batchSize     = c.Config.Get().OutboundMessage.BatchSize
 			)
-			return messages.NewOutboundMessageService(natsClient, urlRepository, interval, batchSize)
+			return messages.NewOutboundMessageService(natsClient, urlRepository, interval, batchSize, logger)
 		},
 	}
 

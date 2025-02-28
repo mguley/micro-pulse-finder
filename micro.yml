@@ -74,7 +74,8 @@ services:
     container_name: promtail
     volumes:
       - ./shared/observability/docker/promtail/config.yml:/etc/promtail/config.yml
-      - ./nats-service/logs:/logs   # Mount nats-service logs directory
+      - ./nats-service/logs:/var/log/nats-service   # Mount nats-service logs directory
+      - ./url-service/logs:/var/log/url-service     # Mount url-service logs directory
     ports:
       - "9080:9080"
     command:

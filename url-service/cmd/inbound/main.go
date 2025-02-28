@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os/signal"
 	"syscall"
 	"time"
@@ -12,6 +11,7 @@ import (
 func main() {
 	var (
 		app            = application.NewContainer()
+		logger         = app.Infrastructure.Get().Logger.Get()
 		inboundService = app.InboundMessageService.Get()
 		natsClient     = app.NatsGrpcClient.Get()
 		gracePeriod    = time.Duration(2) * time.Second
@@ -22,21 +22,20 @@ func main() {
 	inboundCtx, inboundCancel = signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer inboundCancel()
 
-	// Start the inbound service.
+	logger.Info("Starting inbound service")
 	go func() {
 		if err := inboundService.Start(inboundCtx); err != nil {
-			fmt.Printf("Error starting inbound service: %v", err)
+			logger.Error("Error starting inbound service", "error", err)
 		}
 	}()
 
 	<-inboundCtx.Done()
-	fmt.Println("Shutdown signal received, stopping inbound service...")
-	fmt.Printf("Waiting %v for in-flight operations to complete...\n", gracePeriod)
+	logger.Info("Shutdown signal received, stopping inbound service", "gracePeriod", gracePeriod)
 	time.Sleep(gracePeriod)
 
-	fmt.Println("\nClosing NATS connection...")
+	logger.Info("Closing NATS connection...")
 	if err := natsClient.Close(); err != nil {
-		fmt.Printf("Error closing NATS connection: %v", err)
+		logger.Error("Error closing NATS connection", "error", err)
 	}
-	fmt.Println("Inbound service gracefully shutdown.")
+	logger.Info("Inbound service gracefully shutdown.")
 }

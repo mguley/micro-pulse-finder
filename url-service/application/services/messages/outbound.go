@@ -3,7 +3,7 @@ package messages
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log/slog"
 	"shared/grpc/clients/nats_service"
 	"shared/grpc/clients/nats_service/messaging"
 	"time"
@@ -20,6 +20,7 @@ type OutboundMessageService struct {
 	batchSize     int
 	semaphore     chan struct{}
 	interval      time.Duration
+	logger        *slog.Logger
 }
 
 // NewOutboundMessageService creates a new instance of OutboundMessageService.
@@ -28,6 +29,7 @@ func NewOutboundMessageService(
 	urlRepository interfaces.UrlRepository,
 	interval time.Duration,
 	batchSize int,
+	logger *slog.Logger,
 ) *OutboundMessageService {
 	return &OutboundMessageService{
 		natsClient:    natsClient,
@@ -35,6 +37,7 @@ func NewOutboundMessageService(
 		batchSize:     batchSize,
 		semaphore:     make(chan struct{}, batchSize),
 		interval:      interval,
+		logger:        logger,
 	}
 }
 
@@ -46,7 +49,7 @@ func (s *OutboundMessageService) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Outbound service stopped")
+			s.logger.Info("Context canceled, outbound service stopped.")
 			return
 		case <-ticker.C:
 			s.scan(ctx)
@@ -63,12 +66,12 @@ func (s *OutboundMessageService) scan(ctx context.Context) {
 	)
 
 	if list, err = s.urlRepository.FetchBatch(ctx, filter, s.batchSize); err != nil {
-		fmt.Printf("[ERROR] Failed to fetch pending URLs: %v\n", err)
+		s.logger.Error("Failed to fetch pending URLs", "error", err)
 		return
 	}
 
 	if len(list) == 0 {
-		fmt.Println("[INFO] No pending URLs found")
+		s.logger.Info("No pending URLs found")
 		return
 	}
 
@@ -84,7 +87,7 @@ func (s *OutboundMessageService) processMessage(ctx context.Context, url *entiti
 	defer func() { <-s.semaphore }()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("[PANIC] Recovered in goroutine for URL ID %s: %v\n", url.Id.Hex(), r)
+			s.logger.Error("Panic recovered in processMessage", "urlID", url.Id.Hex(), "panic", r)
 		}
 	}()
 
@@ -97,14 +100,14 @@ func (s *OutboundMessageService) processMessage(ctx context.Context, url *entiti
 	)
 
 	if data, marshalErr = json.Marshal(url); marshalErr != nil {
-		fmt.Printf("[ERROR] Could not marshal URL with ID %s: %v\n", url.Id.Hex(), marshalErr)
+		s.logger.Error("Failed to marshal URL", "urlID", url.Id.Hex(), "error", marshalErr)
 		return
 	}
 	if pubErr = s.natsClient.Publish(ctx, messaging.UrlOutgoing, data); pubErr != nil {
-		fmt.Printf("[ERROR] Could not publish URL with ID %s: %v\n", url.Id.Hex(), pubErr)
+		s.logger.Error("Failed to publish URL", "urlID", url.Id.Hex(), "error", pubErr)
 		return
 	}
-	fmt.Printf("[INFO] Published URL with ID %s to subject %s\n", url.Id.Hex(), messaging.UrlOutgoing)
+	s.logger.Info("Published URL", "urlID", url.Id.Hex(), "subject", messaging.UrlOutgoing)
 
 	// Update the URL's status to processed to avoid republishing.
 	now := time.Now()
@@ -114,8 +117,9 @@ func (s *OutboundMessageService) processMessage(ctx context.Context, url *entiti
 		"updated_at": now,
 	}
 	if updateErr = s.urlRepository.UpdateFields(ctx, url.Id.Hex(), updateFields); updateErr != nil {
-		fmt.Printf("[ERROR] Could not update URL with ID %s: %v\n", url.Id.Hex(), updateErr)
+		s.logger.Error("Failed to update URL", "urlID", url.Id.Hex(), "error", updateErr)
 		return
 	}
-	fmt.Printf("[INFO] Updated URL with ID %s to processed status\n", url.Id.Hex())
+
+	s.logger.Info("Updated URL to processed", "urlID", url.Id.Hex(), "status", url.Status)
 }

@@ -56,23 +56,25 @@ func NewContainer() *Container {
 	c.InboundMessageService = dependency.LazyDependency[*messages.InboundMessageService]{
 		InitFunc: func() *messages.InboundMessageService {
 			var (
+				logger        = c.Infrastructure.Get().Logger.Get()
 				natsClient    = c.NatsGrpcClient.Get()
 				urlRepository = c.Infrastructure.Get().MongoRepository.Get()
 				batchSize     = c.Config.Get().InboundMessage.BatchSize
 				queueGroup    = c.Config.Get().InboundMessage.QueueGroup
 			)
-			return messages.NewInboundMessageService(natsClient, urlRepository, batchSize, queueGroup)
+			return messages.NewInboundMessageService(natsClient, urlRepository, batchSize, queueGroup, logger)
 		},
 	}
 	c.OutboundMessageService = dependency.LazyDependency[*messages.OutboundMessageService]{
 		InitFunc: func() *messages.OutboundMessageService {
 			var (
+				logger        = c.Infrastructure.Get().Logger.Get()
 				natsClient    = c.NatsGrpcClient.Get()
 				urlRepository = c.Infrastructure.Get().MongoRepository.Get()
 				interval      = time.Duration(5) * time.Minute
 				batchSize     = c.Config.Get().OutboundMessage.BatchSize
 			)
-			return messages.NewOutboundMessageService(natsClient, urlRepository, interval, batchSize)
+			return messages.NewOutboundMessageService(natsClient, urlRepository, interval, batchSize, logger)
 		},
 	}
 
