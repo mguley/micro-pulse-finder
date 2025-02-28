@@ -47,13 +47,14 @@ func NewTestContainer() *TestContainer {
 	c.MongoClient = dependency.LazyDependency[*mongodb.Client]{
 		InitFunc: func() *mongodb.Client {
 			var (
+				logger  = c.Logger.Get()
 				address string
 				err     error
 			)
 			if address, err = sharedDomain.GetMongo().Address(); err != nil {
 				panic(err)
 			}
-			return mongodb.NewClient(address)
+			return mongodb.NewClient(address, logger)
 		},
 	}
 	c.MongoRepository = dependency.LazyDependency[interfaces.UrlRepository]{
