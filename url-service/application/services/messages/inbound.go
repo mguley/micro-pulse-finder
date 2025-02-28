@@ -3,7 +3,7 @@ package messages
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log/slog"
 	"shared/grpc/clients/nats_service"
 	"shared/grpc/clients/nats_service/messaging"
 	"time"
@@ -18,6 +18,7 @@ type InboundMessageService struct {
 	batchSize     int                      // batchSize determines the max. number of URL processing goroutines.
 	semaphore     chan struct{}            // semaphore is used to limit the number of processing goroutines.
 	queueGroup    string                   // queueGroup is the NATS queue group for load balancing.
+	logger        *slog.Logger
 }
 
 // NewInboundMessageService creates a new instance of InboundMessageService.
@@ -26,6 +27,7 @@ func NewInboundMessageService(
 	urlRepository interfaces.UrlRepository,
 	batchSize int,
 	queueGroup string,
+	logger *slog.Logger,
 ) *InboundMessageService {
 	return &InboundMessageService{
 		natsClient:    natsClient,
@@ -33,6 +35,7 @@ func NewInboundMessageService(
 		batchSize:     batchSize,
 		semaphore:     make(chan struct{}, batchSize),
 		queueGroup:    queueGroup,
+		logger:        logger,
 	}
 }
 
@@ -50,12 +53,12 @@ func (s *InboundMessageService) messageHandler(data []byte, subject string) {
 		defer func() { <-s.semaphore }()
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Printf("[PANIC] Recovered in goroutine for subject %s: %v\n", subject, r)
+				s.logger.Error("Panic recovered in message handler", "subject", subject, "panic", r)
 			}
 		}()
 
 		// Workload
-		fmt.Printf("Received message on subject %s: %s\n", subject, string(data))
+		s.logger.Info("Received message", "subject", subject, "data", string(data))
 		var (
 			unmarshalErr error
 			err          error
@@ -70,16 +73,16 @@ func (s *InboundMessageService) messageHandler(data []byte, subject string) {
 		defer cancel()
 
 		if unmarshalErr = json.Unmarshal(data, url); unmarshalErr != nil {
-			fmt.Printf("[ERROR] Could not parse received URL data: %v\n", unmarshalErr)
+			s.logger.Error("JSON unmarshal failed", "subject", subject, "error", unmarshalErr)
 			return
 		}
 
 		url.Status = entities.StatusPending
 		url.CreatedAt = now
 		if err = s.urlRepository.Save(saveCtx, url); err != nil {
-			fmt.Printf("[ERROR] Could not save URL data: %v\n", err)
+			s.logger.Error("Failed to save URL", "subject", subject, "error", err)
 			return
 		}
-		fmt.Printf("[INFO] Successfully saved URL to database: %+v\n", url)
+		s.logger.Info("Successfully saved URL", "url", url)
 	}(data, subject)
 }

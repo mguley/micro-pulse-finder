@@ -3,6 +3,7 @@ package url
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"url-service/domain/entities"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -15,11 +16,12 @@ import (
 type Repository struct {
 	client     *mongo.Client     // client is the MongoDB client.
 	collection *mongo.Collection // collection is the MongoDB collection.
+	logger     *slog.Logger
 }
 
 // NewRepository creates a new instance of Repository.
-func NewRepository(mongoClient *mongo.Client, collection *mongo.Collection) *Repository {
-	return &Repository{client: mongoClient, collection: collection}
+func NewRepository(mongoClient *mongo.Client, collection *mongo.Collection, logger *slog.Logger) *Repository {
+	return &Repository{client: mongoClient, collection: collection, logger: logger}
 }
 
 // Save persists a new URL entity into the MongoDB collection.
@@ -30,9 +32,10 @@ func (r *Repository) Save(ctx context.Context, url *entities.Url) (err error) {
 
 	var insertResult *mongo.InsertOneResult
 	if insertResult, err = r.collection.InsertOne(ctx, url); err != nil {
+		r.logger.Error("Failed to execute an insert command", "error", err)
 		return fmt.Errorf("insert one: %w", err)
 	}
-	fmt.Printf("Inserted URL: %s with ID: %v\n", url.Address, insertResult.InsertedID)
+	r.logger.Info("Inserted URL", "address", url.Address, "insertedID", insertResult.InsertedID)
 	return nil
 }
 
@@ -45,15 +48,17 @@ func (r *Repository) FetchBatch(ctx context.Context, filter bson.M, limit int) (
 	)
 
 	if cursor, err = r.collection.Find(ctx, filter, opts); err != nil {
+		r.logger.Error("Failed to execute a find command", "error", err)
 		return nil, fmt.Errorf("find by filter: %w", err)
 	}
 	defer func() {
 		if closeErr := cursor.Close(ctx); closeErr != nil {
-			fmt.Printf("close cursor: %v", closeErr)
+			r.logger.Error("Failed to close cursor", "error", closeErr)
 		}
 	}()
 
 	if err = cursor.All(ctx, &list); err != nil {
+		r.logger.Error("Failed to execute cursor's command", "error", err)
 		return nil, fmt.Errorf("decode URL documents: %w", err)
 	}
 	return list, nil
@@ -69,13 +74,16 @@ func (r *Repository) UpdateFields(ctx context.Context, id string, updateFields b
 	)
 
 	if objectId, err = primitive.ObjectIDFromHex(id); err != nil {
+		r.logger.Error("Failed to parse object ID", "error", err)
 		return fmt.Errorf("ID format: %w", err)
 	}
 	if updateResult, err = r.collection.UpdateOne(ctx, bson.M{"_id": objectId}, update); err != nil {
+		r.logger.Error("Failed to execute an update command", "objectId", objectId, "error", err)
 		return fmt.Errorf("update for ID %s: %w", id, err)
 	}
 
 	if updateResult.MatchedCount == 0 {
+		r.logger.Error("No rows were updated", "id", id)
 		return fmt.Errorf("ID %s not found", id)
 	}
 	return nil
@@ -96,10 +104,12 @@ func (r *Repository) BulkUpdateFields(ctx context.Context, ids []string, updateF
 	)
 
 	if updateResult, err = r.collection.UpdateMany(ctx, filter, update); err != nil {
+		r.logger.Error("Failed to execute an update command", "filter", filter, "error", err)
 		return fmt.Errorf("bulk update: %w", err)
 	}
 
 	if updateResult.MatchedCount == 0 {
+		r.logger.Error("No rows were updated", "ids", ids)
 		return fmt.Errorf("no documents found for ids: %s", ids)
 	}
 
@@ -113,6 +123,7 @@ func (r *Repository) parseObjectIDs(ids []string) (list []primitive.ObjectID, er
 	var objectId primitive.ObjectID
 	for _, id := range ids {
 		if objectId, err = primitive.ObjectIDFromHex(id); err != nil {
+			r.logger.Error("Failed to parse object ID", "objectId", objectId, "error", err)
 			return nil, fmt.Errorf("ID format: %w", err)
 		}
 		list = append(list, objectId)

@@ -1,6 +1,8 @@
 package url
 
 import (
+	"log/slog"
+	"os"
 	"shared/dependency"
 	"shared/mongodb/application/config"
 	"shared/mongodb/domain/entities"
@@ -13,6 +15,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Logger          dependency.LazyDependency[*slog.Logger]
 	MongoClient     dependency.LazyDependency[*mongodb.Client]
 	MongoRepository dependency.LazyDependency[interfaces.UrlRepository]
 }
@@ -21,6 +24,11 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Logger = dependency.LazyDependency[*slog.Logger]{
+		InitFunc: func() *slog.Logger {
+			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+		},
+	}
 	c.MongoClient = dependency.LazyDependency[*mongodb.Client]{
 		InitFunc: func() *mongodb.Client {
 			var (
@@ -36,6 +44,7 @@ func NewTestContainer() *TestContainer {
 	c.MongoRepository = dependency.LazyDependency[interfaces.UrlRepository]{
 		InitFunc: func() interfaces.UrlRepository {
 			var (
+				logger         = c.Logger.Get()
 				mongoClient    *mongo.Client
 				collection     *mongo.Collection
 				collectionName = config.GetConfig().Mongo.Collection
@@ -46,7 +55,7 @@ func NewTestContainer() *TestContainer {
 				panic(err)
 			}
 			collection = mongoClient.Database(dbName).Collection(collectionName)
-			return url.NewRepository(mongoClient, collection)
+			return url.NewRepository(mongoClient, collection, logger)
 		},
 	}
 

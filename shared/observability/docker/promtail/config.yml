@@ -13,9 +13,16 @@ clients:
 scrape_configs:
   - job_name: "nats-service-logs"
     static_configs:
-      - targets:
-          - localhost
+      - targets: ["localhost"]
         labels:
-          job: nats-service-logs  # This label will be used in Loki to identify logs
-          service: nats-service
-          __path__: /logs/*.log  # Collect logs from Go microservice
+          job: "nats-service-logs"
+          service: "nats-service"
+          __path__: /var/log/nats-service/*.log
+
+  - job_name: "url-service-logs"
+    static_configs:
+      - targets: ["localhost"]
+        labels:
+          job: "url-service-logs"
+          service: "url-service"
+          __path__: /var/log/url-service/*.log
