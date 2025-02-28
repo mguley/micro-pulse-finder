@@ -1,7 +1,9 @@
 package processor
 
 import (
+	"log/slog"
 	natsServiceInfrastructure "nats-service/infrastructure"
+	"os"
 	"proxy-service/application/config"
 	"proxy-service/application/services"
 	"proxy-service/domain/entities"
@@ -15,6 +17,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Logger                    dependency.LazyDependency[*slog.Logger]
 	Config                    dependency.LazyDependency[*config.Config]
 	UserAgent                 dependency.LazyDependency[interfaces.Agent]
 	Socks5Client              dependency.LazyDependency[*socks5.Client]
@@ -29,6 +32,11 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Logger = dependency.LazyDependency[*slog.Logger]{
+		InitFunc: func() *slog.Logger {
+			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+		},
+	}
 	c.Config = dependency.LazyDependency[*config.Config]{
 		InitFunc: config.GetConfig,
 	}
@@ -64,6 +72,7 @@ func NewTestContainer() *TestContainer {
 	c.NatsGrpcClient = dependency.LazyDependency[*nats_service.NatsClient]{
 		InitFunc: func() *nats_service.NatsClient {
 			var (
+				logger     = c.Logger.Get()
 				env        = c.Config.Get().Env
 				validator  = c.NatsGrpcValidator.Get()
 				natsClient *nats_service.NatsClient
@@ -73,7 +82,7 @@ func NewTestContainer() *TestContainer {
 			if address, err = entities.GetNats().Address(); err != nil {
 				panic(err)
 			}
-			if natsClient, err = nats_service.NewNatsClient(env, address, validator); err != nil {
+			if natsClient, err = nats_service.NewNatsClient(env, address, validator, logger); err != nil {
 				panic(err)
 			}
 			return natsClient
