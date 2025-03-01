@@ -39,12 +39,13 @@ func NewContainer() *Container {
 	c.RetryStrategy = dependency.LazyDependency[interfaces.RetryStrategy]{
 		InitFunc: func() interfaces.RetryStrategy {
 			var (
+				logger     = c.Infrastructure.Get().Logger.Get()
 				baseDelay  = time.Duration(5) * time.Second
 				maxDelay   = time.Duration(45) * time.Second
 				attempts   = 5
 				multiplier = 2.0
 			)
-			return services.NewExponentialBackoffStrategy(baseDelay, maxDelay, attempts, multiplier)
+			return services.NewExponentialBackoffStrategy(baseDelay, maxDelay, attempts, multiplier, logger)
 		},
 	}
 	c.NatsGrpcValidator = dependency.LazyDependency[nats_service.Validator]{
@@ -74,12 +75,13 @@ func NewContainer() *Container {
 	c.UrlProcessorService = dependency.LazyDependency[*services.UrlProcessorService]{
 		InitFunc: func() *services.UrlProcessorService {
 			var (
+				logger     = c.Infrastructure.Get().Logger.Get()
 				pool       = c.Infrastructure.Get().ConnectionPool.Get()
 				natsClient = c.NatsGrpcClient.Get()
 				batchSize  = c.Config.Get().UrlProcessor.BatchSize
 				queueGroup = c.Config.Get().UrlProcessor.QueueGroup
 			)
-			return services.NewUrlProcessorService(pool, natsClient, batchSize, queueGroup)
+			return services.NewUrlProcessorService(pool, natsClient, batchSize, queueGroup, logger)
 		},
 	}
 
@@ -87,29 +89,32 @@ func NewContainer() *Container {
 	c.AuthenticateCommand = dependency.LazyDependency[*control.AuthenticateCommand]{
 		InitFunc: func() *control.AuthenticateCommand {
 			var (
+				logger   = c.Infrastructure.Get().Logger.Get()
 				adapter  = c.Infrastructure.Get().PortConnection.Get()
 				password = c.Config.Get().Proxy.ControlPassword
 			)
-			return control.NewAuthenticateCommand(adapter, password)
+			return control.NewAuthenticateCommand(adapter, password, logger)
 		},
 	}
 	c.SignalCommand = dependency.LazyDependency[*control.SignalCommand]{
 		InitFunc: func() *control.SignalCommand {
 			var (
+				logger  = c.Infrastructure.Get().Logger.Get()
 				adapter = c.Infrastructure.Get().PortConnection.Get()
 				signal  = "NEWNYM"
 			)
-			return control.NewSignalCommand(adapter, signal)
+			return control.NewSignalCommand(adapter, signal, logger)
 		},
 	}
 	c.StatusCommand = dependency.LazyDependency[*commands.StatusCommand]{
 		InitFunc: func() *commands.StatusCommand {
 			var (
+				logger  = c.Infrastructure.Get().Logger.Get()
 				timeout = time.Duration(10) * time.Second
 				url     = c.Config.Get().Proxy.Url
 				pool    = c.Infrastructure.Get().ConnectionPool.Get()
 			)
-			return commands.NewStatusCommand(timeout, url, pool)
+			return commands.NewStatusCommand(timeout, url, pool, logger)
 		},
 	}
 

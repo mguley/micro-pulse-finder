@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
 )
@@ -14,6 +15,7 @@ type ExponentialBackoffStrategy struct {
 	maxDelay   time.Duration // maxDelay is a maximum delay between retries (e.g., 5s).
 	attempts   int           // attempts is a maximum number of retry attempts.
 	multiplier float64       // multiplier is a growth multiplier for exponential backoff (e.g., 2.0)
+	logger     *slog.Logger  // logger for structured logging.
 }
 
 // NewExponentialBackoffStrategy creates a new instance of ExponentialBackoffStrategy.
@@ -21,6 +23,7 @@ func NewExponentialBackoffStrategy(
 	baseDelay, maxDelay time.Duration,
 	attempts int,
 	multiplier float64,
+	logger *slog.Logger,
 ) *ExponentialBackoffStrategy {
 	if baseDelay <= 0 {
 		baseDelay = time.Duration(5) * time.Second
@@ -32,11 +35,19 @@ func NewExponentialBackoffStrategy(
 		multiplier = 2.0
 	}
 
+	logger.Info("Initializing ExponentialBackoffStrategy",
+		"baseDelay", baseDelay,
+		"maxDelay", maxDelay,
+		"attempts", attempts,
+		"multiplier", multiplier,
+	)
+
 	return &ExponentialBackoffStrategy{
 		baseDelay:  baseDelay,
 		maxDelay:   maxDelay,
 		attempts:   attempts,
 		multiplier: multiplier,
+		logger:     logger,
 	}
 }
 
@@ -44,16 +55,17 @@ func NewExponentialBackoffStrategy(
 // It uses an exponential backoff formula: BaseDelay * Multiplier^attempt.
 func (s *ExponentialBackoffStrategy) WaitDuration(attempt int) (result time.Duration, err error) {
 	if err = s.validate(attempt); err != nil {
+		s.logger.Error("Validation failed for exponential backoff strategy", "attempt", attempt, "error", err)
 		return 0, fmt.Errorf("exponential backoff strategy: %w", err)
 	}
 
 	// Calculate exponential delay
 	var delay = float64(s.baseDelay) * math.Pow(s.multiplier, float64(attempt))
-
 	if delay > float64(s.maxDelay) {
 		delay = float64(s.maxDelay)
 	}
 
+	s.logger.Debug("Calculated wait duration", "attempt", attempt, "waitDuration", time.Duration(delay))
 	return time.Duration(delay), nil
 }
 

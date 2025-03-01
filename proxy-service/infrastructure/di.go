@@ -48,31 +48,37 @@ func NewContainer() *Container {
 	}
 	c.UserAgent = dependency.LazyDependency[interfaces.Agent]{
 		InitFunc: func() interfaces.Agent {
-			return agent.NewChromeAgent()
+			return agent.NewChromeAgent(c.Logger.Get())
 		},
 	}
 	c.Socks5Client = dependency.LazyDependency[*socks5.Client]{
 		InitFunc: func() *socks5.Client {
 			var (
+				logger    = c.Logger.Get()
 				userAgent = c.UserAgent.Get()
 				timeout   = time.Duration(10) * time.Second
 			)
-			return socks5.NewClient(userAgent, timeout)
+			return socks5.NewClient(userAgent, timeout, logger)
 		},
 	}
 	c.PortConnection = dependency.LazyDependency[*proxy.Connection]{
 		InitFunc: func() *proxy.Connection {
-			return proxy.NewConnection(time.Duration(10) * time.Second)
+			var (
+				timeout = time.Duration(10) * time.Second
+				logger  = c.Logger.Get()
+			)
+			return proxy.NewConnection(timeout, logger)
 		},
 	}
 	c.ConnectionPool = dependency.LazyDependency[*socks5.ConnectionPool]{
 		InitFunc: func() *socks5.ConnectionPool {
 			var (
+				logger          = c.Logger.Get()
 				poolSize        = c.Config.Get().Pool.MaxSize
 				refreshInterval = c.Config.Get().Pool.RefreshInterval
 				creator         = c.Socks5Client.Get().Create
 			)
-			return socks5.NewConnectionPool(poolSize, time.Duration(refreshInterval)*time.Second, creator)
+			return socks5.NewConnectionPool(poolSize, time.Duration(refreshInterval)*time.Second, creator, logger)
 		},
 	}
 

@@ -26,3 +26,11 @@ scrape_configs:
           job: "url-service-logs"
           service: "url-service"
           __path__: /var/log/url-service/*.log
+
+  - job_name: "proxy-service-logs"
+    static_configs:
+      - targets: ["localhost"]
+        labels:
+          job: "proxy-service-logs"
+          service: "proxy-service"
+          __path__: /var/log/proxy-service/*.log
