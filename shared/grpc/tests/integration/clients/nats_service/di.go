@@ -1,6 +1,8 @@
 package nats_service
 
 import (
+	"log/slog"
+	"os"
 	"shared/dependency"
 	"shared/grpc/clients/nats_service"
 	"shared/grpc/tests/integration/clients/nats_service/server"
@@ -8,6 +10,7 @@ import (
 
 // TestContainer holds dependencies for integration tests.
 type TestContainer struct {
+	Logger               dependency.LazyDependency[*slog.Logger]
 	MockBusServiceServer dependency.LazyDependency[*server.MockBusService]
 	TestServerContainer  dependency.LazyDependency[*server.TestServerContainer]
 	NatsValidator        dependency.LazyDependency[nats_service.Validator]
@@ -18,6 +21,11 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Logger = dependency.LazyDependency[*slog.Logger]{
+		InitFunc: func() *slog.Logger {
+			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+		},
+	}
 	c.MockBusServiceServer = dependency.LazyDependency[*server.MockBusService]{
 		InitFunc: server.NewMockBusService,
 	}
@@ -41,13 +49,14 @@ func NewTestContainer() *TestContainer {
 	c.NatsClient = dependency.LazyDependency[*nats_service.NatsClient]{
 		InitFunc: func() *nats_service.NatsClient {
 			var (
+				logger     = c.Logger.Get()
 				address    = c.TestServerContainer.Get().Address
 				validator  = c.NatsValidator.Get()
 				natsClient *nats_service.NatsClient
 				env        = "dev"
 				err        error
 			)
-			if natsClient, err = nats_service.NewNatsClient(env, address, validator); err != nil {
+			if natsClient, err = nats_service.NewNatsClient(env, address, validator, logger); err != nil {
 				panic(err)
 			}
 			return natsClient

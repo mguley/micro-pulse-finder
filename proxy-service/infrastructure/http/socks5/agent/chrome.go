@@ -3,6 +3,7 @@ package agent
 import (
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"math/big"
 )
 
@@ -10,10 +11,11 @@ import (
 type ChromeAgent struct {
 	versions []string
 	os       []string
+	logger   *slog.Logger
 }
 
 // NewChromeAgent creates a new instance of ChromeAgent.
-func NewChromeAgent() *ChromeAgent {
+func NewChromeAgent(logger *slog.Logger) *ChromeAgent {
 	return &ChromeAgent{
 		versions: []string{
 			"126.0.6478.114", "126.0.6478.62", "126.0.6478.61",
@@ -28,6 +30,7 @@ func NewChromeAgent() *ChromeAgent {
 			"X11; Linux x86_64", "Windows NT 6.1; Win64; x64",
 			"Macintosh; Intel Mac OS X 10_14_6",
 		},
+		logger: logger,
 	}
 }
 
@@ -37,7 +40,9 @@ func (a *ChromeAgent) Generate() (userAgent string) {
 		v = a.versions[a.rand(len(a.versions))]
 		o = a.os[a.rand(len(a.os))]
 	)
-	return fmt.Sprintf("Mozilla/5.0 (%s) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", o, v)
+	userAgent = fmt.Sprintf("Mozilla/5.0 (%s) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36", o, v)
+	a.logger.Debug("Generated new Chrome User-Agent", "userAgent", userAgent)
+	return userAgent
 }
 
 // rand generates random number.
@@ -48,6 +53,7 @@ func (a *ChromeAgent) rand(number int) (result int) {
 	)
 
 	if value, err = rand.Int(rand.Reader, big.NewInt(int64(number))); err != nil {
+		a.logger.Error("Failed to generate random number", "error", err)
 		return number
 	}
 	return int(value.Int64())

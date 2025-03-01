@@ -2,7 +2,7 @@ package socks5
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -20,15 +20,22 @@ type ConnectionPool struct {
 	stopChan      chan struct{}     // stopChan signals the refresh goroutine to stop.
 	creator       CreatorFunc       // creator is a function that returns a new HTTP client.
 	shutdownOnce  sync.Once         // shutdownOnce ensures Shutdown is executed only once.
+	logger        *slog.Logger
 }
 
 // NewConnectionPool creates a new instance of ConnectionPool.
-func NewConnectionPool(poolSize int, refreshInterval time.Duration, creator CreatorFunc) *ConnectionPool {
+func NewConnectionPool(
+	poolSize int,
+	refreshInterval time.Duration,
+	creator CreatorFunc,
+	logger *slog.Logger,
+) *ConnectionPool {
 	pool := &ConnectionPool{
 		pool:        make(chan *http.Client, poolSize),
 		maxPoolSize: poolSize,
 		stopChan:    make(chan struct{}),
 		creator:     creator,
+		logger:      logger,
 	}
 
 	pool.initialize(refreshInterval)
@@ -42,9 +49,13 @@ func (cp *ConnectionPool) initialize(refreshInterval time.Duration) {
 		err        error
 	)
 
+	cp.logger.Info("Initializing connection pool", "maxPoolSize", cp.maxPoolSize)
+
 	for i := 0; i < cp.maxPoolSize; i++ {
 		if httpClient, err = cp.creator(); err != nil {
-			log.Panicf("could not create HTTP client for connection pool: %v", err)
+			cp.logger.Error("Could not create HTTP client for connection pool", "error", err)
+			cp.logger.Warn("Panic due to failure in connection pool initialization")
+			panic(fmt.Sprintf("could not create HTTP client for connection pool: %v", err))
 		}
 		cp.pool <- httpClient
 	}
@@ -52,6 +63,7 @@ func (cp *ConnectionPool) initialize(refreshInterval time.Duration) {
 	// Start the periodic refresh routine.
 	cp.refreshTicker = time.NewTicker(refreshInterval)
 	go cp.startRefresh()
+	cp.logger.Info("Connection pool initialized and refresh routine started", "refreshInterval", refreshInterval)
 }
 
 // startRefresh periodically refreshes connections in the pool to ensure they remain healthy.
@@ -59,6 +71,7 @@ func (cp *ConnectionPool) startRefresh() {
 	for {
 		select {
 		case <-cp.stopChan:
+			cp.logger.Info("Stopping connection pool refresh routine")
 			return
 		case <-cp.refreshTicker.C:
 			cp.refreshConnections()
@@ -79,6 +92,8 @@ func (cp *ConnectionPool) refreshConnections() {
 		idleCount  = len(cp.pool)
 	)
 
+	cp.logger.Debug("Refreshing idle connections", "idleCount", idleCount)
+
 	for i := 0; i < idleCount; i++ {
 		select {
 		case client := <-cp.pool:
@@ -86,11 +101,12 @@ func (cp *ConnectionPool) refreshConnections() {
 				transport.CloseIdleConnections()
 			}
 			if httpClient, err = cp.creator(); err != nil {
-				fmt.Printf("could not refresh connection: %v", err)
+				cp.logger.Error("Could not refresh connection", "error", err)
 			} else {
 				cp.pool <- httpClient
 			}
 		default:
+			cp.logger.Debug("No more idle connections to refresh")
 			return
 		}
 	}
@@ -98,12 +114,15 @@ func (cp *ConnectionPool) refreshConnections() {
 
 // Borrow retrieves an available HTTP client from the pool.
 func (cp *ConnectionPool) Borrow() (client *http.Client) {
-	return <-cp.pool
+	client = <-cp.pool
+	cp.logger.Debug("HTTP client borrowed from pool")
+	return client
 }
 
 // Return places an HTTP client back into the pool for reuse.
 func (cp *ConnectionPool) Return(client *http.Client) {
 	cp.pool <- client
+	cp.logger.Debug("HTTP client returned to pool")
 }
 
 // Shutdown gracefully stops the connection pool's refresh routine and cleans up resources.
@@ -113,6 +132,7 @@ func (cp *ConnectionPool) Shutdown() {
 		defer cp.mu.Unlock()
 
 		// Signal the refresh goroutine to stop and stop the ticker.
+		cp.logger.Info("Shutting down connection pool")
 		close(cp.stopChan)
 		cp.refreshTicker.Stop()
 
@@ -124,5 +144,6 @@ func (cp *ConnectionPool) Shutdown() {
 				transport.CloseIdleConnections()
 			}
 		}
+		cp.logger.Info("Connection pool shutdown complete")
 	})
 }

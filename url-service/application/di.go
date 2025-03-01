@@ -38,6 +38,7 @@ func NewContainer() *Container {
 	c.NatsGrpcClient = dependency.LazyDependency[*nats_service.NatsClient]{
 		InitFunc: func() *nats_service.NatsClient {
 			var (
+				logger     = c.Infrastructure.Get().Logger.Get()
 				env        = c.Config.Get().Env
 				validator  = c.NatsGrpcValidator.Get()
 				natsClient *nats_service.NatsClient
@@ -47,7 +48,7 @@ func NewContainer() *Container {
 			if address, err = entities.GetNats().Address(); err != nil {
 				panic(err)
 			}
-			if natsClient, err = nats_service.NewNatsClient(env, address, validator); err != nil {
+			if natsClient, err = nats_service.NewNatsClient(env, address, validator, logger); err != nil {
 				panic(err)
 			}
 			return natsClient

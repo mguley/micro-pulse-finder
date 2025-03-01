@@ -2,9 +2,8 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"proxy-service/infrastructure/http/socks5"
@@ -20,6 +19,7 @@ type UrlProcessorService struct {
 	batchSize  int                      // batchSize determines the max. number of concurrent URL processing goroutines.
 	semaphore  chan struct{}            // semaphore is used to limit the number of concurrently processing goroutines.
 	queueGroup string                   // queueGroup is the NATS queue group for load balancing.
+	logger     *slog.Logger             // logger for structured logging.
 }
 
 // NewUrlProcessorService creates a new instance of UrlProcessorService.
@@ -28,6 +28,7 @@ func NewUrlProcessorService(
 	natsClient *nats_service.NatsClient,
 	batchSize int,
 	queueGroup string,
+	logger *slog.Logger,
 ) *UrlProcessorService {
 	return &UrlProcessorService{
 		pool:       pool,
@@ -35,11 +36,13 @@ func NewUrlProcessorService(
 		batchSize:  batchSize,
 		queueGroup: queueGroup,
 		semaphore:  make(chan struct{}, batchSize),
+		logger:     logger,
 	}
 }
 
 // Start subscribes to the ProxyUrlRequest subject and processes incoming URL messages.
 func (s *UrlProcessorService) Start(ctx context.Context) (err error) {
+	s.logger.Info("Starting URL processor service", "queueGroup", s.queueGroup)
 	return s.natsClient.Subscribe(ctx, messaging.ProxyUrlRequest, s.queueGroup, s.messageHandler)
 }
 
@@ -55,7 +58,7 @@ func (s *UrlProcessorService) messageHandler(data []byte, subject string) {
 		defer func() { <-s.semaphore }()
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Printf("[PANIC] Recovered in goroutine for subject %s: %v\n", subject, r)
+				s.logger.Error("Recovered from panic in URL message processing", "subject", subject, "panic", r)
 			}
 		}()
 
@@ -72,9 +75,11 @@ func (s *UrlProcessorService) messageHandler(data []byte, subject string) {
 			err        error
 		)
 
+		s.logger.Info("Processing URL", "url", rawURL, "subject", subject)
+
 		// Validate that URL is well-formed.
 		if parsedURL, err = url.ParseRequestURI(rawURL); err != nil {
-			log.Printf("Invalid URL received: %s, error: %v", rawURL, err)
+			s.logger.Error("Invalid URL received", "url", rawURL, "error", err)
 			return
 		}
 
@@ -88,27 +93,30 @@ func (s *UrlProcessorService) messageHandler(data []byte, subject string) {
 		// Create and execute HTTP request.
 		request, err = http.NewRequestWithContext(requestCtx, http.MethodGet, parsedURL.String(), http.NoBody)
 		if err != nil {
-			log.Printf("Could not create HTTP request for URL %s, error: %v", parsedURL.String(), err)
+			s.logger.Error("Could not create HTTP request", "url", parsedURL.String(), "error", err)
 			return
 		}
+
 		if response, err = client.Do(request); err != nil {
-			log.Printf("Could not make HTTP request to %s, error: %v", parsedURL.String(), err)
+			s.logger.Error("Could not make HTTP request", "url", parsedURL.String(), "error", err)
 			return
 		}
 		defer func() {
 			if closeErr := response.Body.Close(); closeErr != nil {
-				log.Printf("Could not close response body from %s: %v", parsedURL.String(), closeErr)
+				s.logger.Error("Could not close response body", "url", parsedURL.String(), "error", closeErr)
 			}
 		}()
 
 		// Process the response.
 		if body, err = io.ReadAll(response.Body); err != nil {
-			log.Printf("Could not read response body from %s: %v", parsedURL.String(), err)
+			s.logger.Error("Could not read response body", "url", parsedURL.String(), "error", err)
 			return
 		}
 		if err = s.natsClient.Publish(request.Context(), messaging.ProxyUrlResponse, body); err != nil {
-			log.Printf("Could not publish message for URL %s, error: %v", parsedURL.String(), err)
+			s.logger.Error("Could not publish URL response", "url", parsedURL.String(), "error", err)
 			return
 		}
+
+		s.logger.Info("Successfully processed URL", "url", parsedURL.String())
 	}(data, subject)
 }

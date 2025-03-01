@@ -18,7 +18,7 @@ type InboundMessageService struct {
 	batchSize     int                      // batchSize determines the max. number of URL processing goroutines.
 	semaphore     chan struct{}            // semaphore is used to limit the number of processing goroutines.
 	queueGroup    string                   // queueGroup is the NATS queue group for load balancing.
-	logger        *slog.Logger
+	logger        *slog.Logger             // logger for structured logging.
 }
 
 // NewInboundMessageService creates a new instance of InboundMessageService.

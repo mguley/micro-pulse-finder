@@ -121,5 +121,5 @@ func (s *OutboundMessageService) processMessage(ctx context.Context, url *entiti
 		return
 	}
 
-	s.logger.Info("Updated URL to processed", "urlID", url.Id.Hex(), "status", url.Status)
+	s.logger.Info("Updated URL", "urlID", url.Id.Hex(), "updateFields", updateFields)
 }

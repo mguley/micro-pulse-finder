@@ -1,7 +1,9 @@
 package processor
 
 import (
+	"log/slog"
 	natsServiceInfrastructure "nats-service/infrastructure"
+	"os"
 	"proxy-service/application/config"
 	"proxy-service/application/services"
 	"proxy-service/domain/entities"
@@ -15,6 +17,7 @@ import (
 
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
+	Logger                    dependency.LazyDependency[*slog.Logger]
 	Config                    dependency.LazyDependency[*config.Config]
 	UserAgent                 dependency.LazyDependency[interfaces.Agent]
 	Socks5Client              dependency.LazyDependency[*socks5.Client]
@@ -29,31 +32,38 @@ type TestContainer struct {
 func NewTestContainer() *TestContainer {
 	c := &TestContainer{}
 
+	c.Logger = dependency.LazyDependency[*slog.Logger]{
+		InitFunc: func() *slog.Logger {
+			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+		},
+	}
 	c.Config = dependency.LazyDependency[*config.Config]{
 		InitFunc: config.GetConfig,
 	}
 	c.UserAgent = dependency.LazyDependency[interfaces.Agent]{
 		InitFunc: func() interfaces.Agent {
-			return agent.NewChromeAgent()
+			return agent.NewChromeAgent(c.Logger.Get())
 		},
 	}
 	c.Socks5Client = dependency.LazyDependency[*socks5.Client]{
 		InitFunc: func() *socks5.Client {
 			var (
+				logger    = c.Logger.Get()
 				userAgent = c.UserAgent.Get()
 				timeout   = time.Duration(10) * time.Second
 			)
-			return socks5.NewClient(userAgent, timeout)
+			return socks5.NewClient(userAgent, timeout, logger)
 		},
 	}
 	c.ConnectionPool = dependency.LazyDependency[*socks5.ConnectionPool]{
 		InitFunc: func() *socks5.ConnectionPool {
 			var (
+				logger          = c.Logger.Get()
 				poolSize        = c.Config.Get().Pool.MaxSize
 				refreshInterval = c.Config.Get().Pool.RefreshInterval
 				creator         = c.Socks5Client.Get().Create
 			)
-			return socks5.NewConnectionPool(poolSize, time.Duration(refreshInterval)*time.Second, creator)
+			return socks5.NewConnectionPool(poolSize, time.Duration(refreshInterval)*time.Second, creator, logger)
 		},
 	}
 	c.NatsGrpcValidator = dependency.LazyDependency[nats_service.Validator]{
@@ -64,6 +74,7 @@ func NewTestContainer() *TestContainer {
 	c.NatsGrpcClient = dependency.LazyDependency[*nats_service.NatsClient]{
 		InitFunc: func() *nats_service.NatsClient {
 			var (
+				logger     = c.Logger.Get()
 				env        = c.Config.Get().Env
 				validator  = c.NatsGrpcValidator.Get()
 				natsClient *nats_service.NatsClient
@@ -73,7 +84,7 @@ func NewTestContainer() *TestContainer {
 			if address, err = entities.GetNats().Address(); err != nil {
 				panic(err)
 			}
-			if natsClient, err = nats_service.NewNatsClient(env, address, validator); err != nil {
+			if natsClient, err = nats_service.NewNatsClient(env, address, validator, logger); err != nil {
 				panic(err)
 			}
 			return natsClient
@@ -82,12 +93,13 @@ func NewTestContainer() *TestContainer {
 	c.UrlProcessorService = dependency.LazyDependency[*services.UrlProcessorService]{
 		InitFunc: func() *services.UrlProcessorService {
 			var (
+				logger     = c.Logger.Get()
 				pool       = c.ConnectionPool.Get()
 				natsClient = c.NatsGrpcClient.Get()
 				batchSize  = c.Config.Get().UrlProcessor.BatchSize
 				queueGroup = c.Config.Get().UrlProcessor.QueueGroup
 			)
-			return services.NewUrlProcessorService(pool, natsClient, batchSize, queueGroup)
+			return services.NewUrlProcessorService(pool, natsClient, batchSize, queueGroup, logger)
 		},
 	}
 

@@ -47,13 +47,14 @@ func NewTestContainer() *TestContainer {
 	c.MongoClient = dependency.LazyDependency[*mongodb.Client]{
 		InitFunc: func() *mongodb.Client {
 			var (
+				logger  = c.Logger.Get()
 				address string
 				err     error
 			)
 			if address, err = sharedDomain.GetMongo().Address(); err != nil {
 				panic(err)
 			}
-			return mongodb.NewClient(address)
+			return mongodb.NewClient(address, logger)
 		},
 	}
 	c.MongoRepository = dependency.LazyDependency[interfaces.UrlRepository]{
@@ -81,6 +82,7 @@ func NewTestContainer() *TestContainer {
 	c.NatsGrpcClient = dependency.LazyDependency[*nats_service.NatsClient]{
 		InitFunc: func() *nats_service.NatsClient {
 			var (
+				logger     = c.Logger.Get()
 				env        = c.Config.Get().Env
 				validator  = c.NatsGrpcValidator.Get()
 				natsClient *nats_service.NatsClient
@@ -90,7 +92,7 @@ func NewTestContainer() *TestContainer {
 			if address, err = urlServiceDomain.GetNats().Address(); err != nil {
 				panic(err)
 			}
-			if natsClient, err = nats_service.NewNatsClient(env, address, validator); err != nil {
+			if natsClient, err = nats_service.NewNatsClient(env, address, validator, logger); err != nil {
 				panic(err)
 			}
 			return natsClient

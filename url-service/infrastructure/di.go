@@ -53,7 +53,7 @@ func NewContainer() *Container {
 				logger.Error("Failed to get mongo address", "error", err)
 				panic(err)
 			}
-			return mongodb.NewClient(address)
+			return mongodb.NewClient(address, logger)
 		},
 	}
 	c.MongoRepository = dependency.LazyDependency[interfaces.UrlRepository]{
