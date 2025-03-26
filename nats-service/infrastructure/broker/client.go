@@ -3,7 +3,6 @@ package broker
 import (
 	"fmt"
 	"log/slog"
-	"shared/observability/nats-service/metrics"
 	"sync"
 
 	"github.com/nats-io/nats.go"
@@ -15,13 +14,11 @@ import (
 //   - conn:    The underlying NATS connection.
 //   - mu:      Mutex to ensure thread-safe operations.
 //   - options: Connection options used to configure the NATS connection.
-//   - metrics: Metrics instance for monitoring connection status and performance.
 //   - logger:  Logger for structured logging of connection events.
 type Client struct {
 	conn    *nats.Conn
 	mu      sync.Mutex
 	options *nats.Options
-	metrics *metrics.Metrics
 	logger  *slog.Logger
 }
 
@@ -29,13 +26,12 @@ type Client struct {
 //
 // Parameters:
 //   - options: A pointer to the NATS options for connection configuration.
-//   - metrics: Metrics instance for monitoring.
 //   - logger:  Logger instance for logging.
 //
 // Returns:
 //   - *Client: A pointer to the newly created Client instance.
-func NewClient(options *nats.Options, metrics *metrics.Metrics, logger *slog.Logger) *Client {
-	return &Client{options: options, metrics: metrics, logger: logger}
+func NewClient(options *nats.Options, logger *slog.Logger) *Client {
+	return &Client{options: options, logger: logger}
 }
 
 // Connect establishes a connection to the NATS server.
@@ -48,7 +44,6 @@ func (c *Client) Connect() (connection *nats.Conn, err error) {
 	defer c.mu.Unlock()
 
 	c.logger.Info("Attempting to connect to NATS...", "url", c.options.Url)
-	c.metrics.Connection.NATSConnectionAttempts.Inc()
 
 	if c.conn != nil && !c.conn.IsClosed() {
 		c.logger.Debug("NATS connection is already active")
@@ -57,13 +52,10 @@ func (c *Client) Connect() (connection *nats.Conn, err error) {
 
 	if c.conn, err = c.options.Connect(); err != nil {
 		c.logger.Error("Failed to connect to NATS", "url", c.options.Url, "error", err)
-		c.metrics.Connection.NATSConnectionFailures.Inc()
-		c.metrics.Connection.NATSConnectionStatus.Set(0)
 		return nil, fmt.Errorf("could not connect to NATS: %w", err)
 	}
 
 	c.logger.Info("Successfully connected to NATS", "url", c.options.Url)
-	c.metrics.Connection.NATSConnectionStatus.Set(1)
 
 	return c.conn, nil
 }
@@ -82,7 +74,6 @@ func (c *Client) Close() (err error) {
 
 	c.conn.Close()
 	c.conn = nil
-	c.metrics.Connection.NATSConnectionStatus.Set(0)
 	c.logger.Info("NATS connection closed")
 
 	return nil
@@ -97,7 +88,6 @@ func (c *Client) IsConnected() (isConnected bool) {
 	defer c.mu.Unlock()
 
 	if c.conn == nil || c.conn.IsClosed() {
-		c.metrics.Connection.NATSConnectionStatus.Set(0)
 		return false
 	}
 

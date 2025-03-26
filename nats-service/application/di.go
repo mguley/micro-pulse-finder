@@ -31,15 +31,14 @@ func NewContainer() *Container {
 	c.Operations = dependency.LazyDependency[*services.Operations]{
 		InitFunc: func() *services.Operations {
 			var (
-				logger  = c.Infrastructure.Get().Logger.Get()
-				metrics = c.Infrastructure.Get().Metrics.Get()
-				conn    *nats.Conn
-				err     error
+				logger = c.Infrastructure.Get().Logger.Get()
+				conn   *nats.Conn
+				err    error
 			)
 			if conn, err = c.Infrastructure.Get().NatsClient.Get().Connect(); err != nil {
 				panic(err)
 			}
-			return services.NewOperations(conn, metrics, logger)
+			return services.NewOperations(conn, logger)
 		},
 	}
 

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"shared/observability/nats-service/metrics"
-	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -17,25 +15,22 @@ var errNatsConnection = errors.New("nats connection is not established")
 //
 // Fields:
 //   - conn:    The active NATS connection used to send/receive messages.
-//   - metrics: Metrics instance for recording NATS operation metrics.
 //   - logger:  Logger used for logging operation statuses and errors.
 type Operations struct {
-	conn    *nats.Conn
-	metrics *metrics.Metrics
-	logger  *slog.Logger
+	conn   *nats.Conn
+	logger *slog.Logger
 }
 
 // NewOperations creates a new instance of Operations.
 //
 // Parameters:
 //   - conn:    A pointer to the NATS connection.
-//   - metrics: Metrics instance for monitoring operations.
 //   - logger:  Logger instance for logging.
 //
 // Returns:
 //   - *Operations: A pointer to the newly created Operations instance.
-func NewOperations(conn *nats.Conn, metrics *metrics.Metrics, logger *slog.Logger) *Operations {
-	return &Operations{conn: conn, metrics: metrics, logger: logger}
+func NewOperations(conn *nats.Conn, logger *slog.Logger) *Operations {
+	return &Operations{conn: conn, logger: logger}
 }
 
 // Publish sends a message to a specified NATS topic.
@@ -48,21 +43,16 @@ func NewOperations(conn *nats.Conn, metrics *metrics.Metrics, logger *slog.Logge
 //   - err: An error if the publish operation fails, or nil if successful.
 func (ops *Operations) Publish(subject string, data []byte) (err error) {
 	if ops.conn == nil || ops.conn.IsClosed() {
-		ops.metrics.Message.FailedPublishAttempts.Inc()
 		ops.logger.Error("NATS connection is not available", "subject", subject)
 		return errNatsConnection
 	}
 
-	start := time.Now()
 	if err = ops.conn.Publish(subject, data); err != nil {
-		ops.metrics.Message.FailedPublishAttempts.Inc()
 		ops.logger.Error("Failed to publish message", "subject", subject, "error", err)
 		return fmt.Errorf("could not publish: %w", err)
 	}
 
 	ops.logger.Info("Message published successfully", "subject", subject, "size", len(data))
-	ops.metrics.Message.TotalMessagesPublished.Inc()
-	ops.metrics.Message.MessagePublishLatency.Observe(time.Since(start).Seconds())
 
 	return nil
 }
@@ -85,18 +75,11 @@ func (ops *Operations) Subscribe(
 		return nil, errNatsConnection
 	}
 
-	var msgHandler = func(msg *nats.Msg) {
-		start := time.Now()
-		handler(msg)
-		ops.metrics.Message.TotalMessagesReceived.Inc()
-		ops.metrics.Message.MessageProcessingDuration.Observe(time.Since(start).Seconds())
-	}
-
 	switch queueGroup {
 	case "":
-		sub, err = ops.conn.Subscribe(subject, msgHandler)
+		sub, err = ops.conn.Subscribe(subject, handler)
 	default:
-		sub, err = ops.conn.QueueSubscribe(subject, queueGroup, msgHandler)
+		sub, err = ops.conn.QueueSubscribe(subject, queueGroup, handler)
 	}
 
 	if err != nil {
@@ -105,7 +88,6 @@ func (ops *Operations) Subscribe(
 	}
 
 	ops.logger.Info("Subscribed to queue", "subject", subject)
-	ops.metrics.Subscription.ActiveSubscriptions.Inc()
 
 	return sub, nil
 }

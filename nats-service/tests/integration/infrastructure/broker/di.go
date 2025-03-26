@@ -7,7 +7,6 @@ import (
 	"nats-service/infrastructure/broker"
 	"os"
 	"shared/dependency"
-	"shared/observability/nats-service/metrics"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -16,7 +15,6 @@ import (
 // TestContainer holds dependencies for the integration tests.
 type TestContainer struct {
 	Logger     dependency.LazyDependency[*slog.Logger]
-	Metrics    dependency.LazyDependency[*metrics.Metrics]
 	NatsClient dependency.LazyDependency[*broker.Client]
 }
 
@@ -28,9 +26,6 @@ func NewTestContainer() *TestContainer {
 		InitFunc: func() *slog.Logger {
 			return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 		},
-	}
-	c.Metrics = dependency.LazyDependency[*metrics.Metrics]{
-		InitFunc: metrics.NewMetrics,
 	}
 	c.NatsClient = dependency.LazyDependency[*broker.Client]{
 		InitFunc: func() *broker.Client {
@@ -61,7 +56,7 @@ func NewTestContainer() *TestContainer {
 				DisconnectedErrCB: disconnectErrHandler,
 				AllowReconnect:    true,
 			}
-			return broker.NewClient(options, c.Metrics.Get(), logger)
+			return broker.NewClient(options, logger)
 		},
 	}
 
