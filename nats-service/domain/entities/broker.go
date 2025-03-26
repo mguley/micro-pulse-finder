@@ -11,7 +11,10 @@ var (
 	brokerOnce sync.Once
 )
 
-// GetBroker retrieves the Nats configuration.
+// GetBroker retrieves the NATS broker configuration.
+//
+// Returns:
+//   - *Nats: A pointer to the Nats struct containing the broker details.
 func GetBroker() *Nats {
 	brokerOnce.Do(func() {
 		cfg := config.GetConfig()
@@ -23,13 +26,21 @@ func GetBroker() *Nats {
 	return broker
 }
 
-// Nats represents the details of a message broker configuration.
+// Nats represents the configuration details for a NATS message broker.
+//
+// Fields:
+//   - Host: The hostname of the NATS server.
+//   - Port: The port number of the NATS server.
 type Nats struct {
-	Host string // Host is the hostname of the NATS server.
-	Port string // Port is the port number of the NATS server.
+	Host string
+	Port string
 }
 
-// Address returns the full address of the message broker.
+// Address constructs and returns the full URI address for the NATS server.
+//
+// Returns:
+//   - uri: A formatted URI string in the form "nats://<host>:<port>".
+//   - err: An error if either the host or port is missing.
 func (b *Nats) Address() (uri string, err error) {
 	if b.Host == "" || b.Port == "" {
 		return "", fmt.Errorf("invalid address: host or port is empty")

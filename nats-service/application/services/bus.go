@@ -14,6 +14,11 @@ import (
 var errNatsConnection = errors.New("nats connection is not established")
 
 // Operations provides methods for interacting with a NATS messaging system.
+//
+// Fields:
+//   - conn:    The active NATS connection used to send/receive messages.
+//   - metrics: Metrics instance for recording NATS operation metrics.
+//   - logger:  Logger used for logging operation statuses and errors.
 type Operations struct {
 	conn    *nats.Conn
 	metrics *metrics.Metrics
@@ -21,11 +26,26 @@ type Operations struct {
 }
 
 // NewOperations creates a new instance of Operations.
+//
+// Parameters:
+//   - conn:    A pointer to the NATS connection.
+//   - metrics: Metrics instance for monitoring operations.
+//   - logger:  Logger instance for logging.
+//
+// Returns:
+//   - *Operations: A pointer to the newly created Operations instance.
 func NewOperations(conn *nats.Conn, metrics *metrics.Metrics, logger *slog.Logger) *Operations {
 	return &Operations{conn: conn, metrics: metrics, logger: logger}
 }
 
-// Publish sends a message to the specified NATS subject.
+// Publish sends a message to a specified NATS topic.
+//
+// Parameters:
+//   - subject: The NATS subject to which the message will be published.
+//   - data:    The byte slice representing the message payload.
+//
+// Returns:
+//   - err: An error if the publish operation fails, or nil if successful.
 func (ops *Operations) Publish(subject string, data []byte) (err error) {
 	if ops.conn == nil || ops.conn.IsClosed() {
 		ops.metrics.Message.FailedPublishAttempts.Inc()
@@ -48,6 +68,15 @@ func (ops *Operations) Publish(subject string, data []byte) (err error) {
 }
 
 // Subscribe listens for messages on the specified NATS subject.
+//
+// Parameters:
+//   - subject:    The NATS subject to subscribe to.
+//   - queueGroup: (Optional) The queue group for load-balanced message processing.
+//   - handler:    The message handler function that will process incoming messages.
+//
+// Returns:
+//   - sub: A pointer to the NATS subscription if the subscription is successful.
+//   - err: An error if the subscription operation fails; otherwise, nil.
 func (ops *Operations) Subscribe(
 	subject, queueGroup string,
 	handler func(message *nats.Msg),

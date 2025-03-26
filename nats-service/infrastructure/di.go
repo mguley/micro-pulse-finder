@@ -19,7 +19,17 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Container provides a lazily initialized set of dependencies.
+// Container provides a lazily initialized set of infrastructure dependencies.
+//
+// Fields:
+//   - Logger:     Lazy dependency for the logger instance.
+//   - Config:     Lazy dependency for the application configuration.
+//   - Metrics:    Lazy dependency for the metrics instance.
+//   - NatsClient: Lazy dependency for the NATS client.
+//   - Operations: Lazy dependency for the NATS operations service.
+//   - Validator:  Lazy dependency for the request validator.
+//   - BusService: Lazy dependency for the gRPC bus service.
+//   - BusServer:  Lazy dependency for the gRPC bus server.
 type Container struct {
 	Logger     dependency.LazyDependency[*slog.Logger]
 	Config     dependency.LazyDependency[*config.Config]
@@ -31,7 +41,10 @@ type Container struct {
 	BusServer  dependency.LazyDependency[*server.BusServer]
 }
 
-// NewContainer initializes and returns a new Container with dependencies.
+// NewContainer initializes and returns a new Container with all required dependencies.
+//
+// Returns:
+//   - *Container: A pointer to the newly created infrastructure container.
 func NewContainer() *Container {
 	c := &Container{}
 

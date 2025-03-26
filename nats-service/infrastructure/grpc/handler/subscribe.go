@@ -8,8 +8,16 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Subscribe is a server-streaming RPC that subscribes to a NATS subject and sends received messages as they arrive.
-// The stream remains open until the client cancels or the server shuts down.
+// Subscribe is a server-streaming RPC method that subscribes to a NATS subject and streams incoming messages.
+//
+// It listens for messages on the specified subject and streams them to the client.
+//
+// Parameters:
+//   - request: Pointer to the SubscribeRequest containing the subject and optional queue group.
+//   - server:  The gRPC server streaming interface for sending SubscribeResponse messages.
+//
+// Returns:
+//   - err: An error if the subscription or streaming fails, or nil if successful.
 func (s *BusService) Subscribe(
 	request *natsservicev1.SubscribeRequest,
 	server grpc.ServerStreamingServer[natsservicev1.SubscribeResponse],
