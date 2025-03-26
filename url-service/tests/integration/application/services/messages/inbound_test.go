@@ -47,7 +47,7 @@ func TestInboundMessageService_ProcessMessage(t *testing.T) {
 
 	savedUrl := list[0]
 	// todo here we have an issue (GitHub Actions only)
-	//require.Equal(t, entities.StatusPending, savedUrl.Status, "URL status should be pending")
+	// require.Equal(t, entities.StatusPending, savedUrl.Status, "URL status should be pending")
 	require.Equal(t, testUrl, savedUrl.Address, "URL address should match")
 	require.Equal(t, "integration_test", savedUrl.Source, "URL source should match")
 	require.False(t, savedUrl.CreatedAt.IsZero(), "CreatedAt timestamp should not be zero")
