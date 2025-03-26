@@ -11,6 +11,7 @@ import (
 	"nats-service/infrastructure/grpc/handler"
 	"nats-service/infrastructure/grpc/server"
 	"nats-service/infrastructure/grpc/validators"
+	"nats-service/infrastructure/metrics"
 	"os"
 	"shared/dependency"
 	"time"
@@ -29,13 +30,15 @@ import (
 //   - BusService: Lazy dependency for the gRPC bus service.
 //   - BusServer:  Lazy dependency for the gRPC bus server.
 type Container struct {
-	Logger     dependency.LazyDependency[*slog.Logger]
-	Config     dependency.LazyDependency[*config.Config]
-	NatsClient dependency.LazyDependency[*broker.Client]
-	Operations dependency.LazyDependency[*services.Operations]
-	Validator  dependency.LazyDependency[validators.Validator]
-	BusService dependency.LazyDependency[*handler.BusService]
-	BusServer  dependency.LazyDependency[*server.BusServer]
+	Logger          dependency.LazyDependency[*slog.Logger]
+	Config          dependency.LazyDependency[*config.Config]
+	NatsClient      dependency.LazyDependency[*broker.Client]
+	Operations      dependency.LazyDependency[*services.Operations]
+	Validator       dependency.LazyDependency[validators.Validator]
+	BusService      dependency.LazyDependency[*handler.BusService]
+	BusServer       dependency.LazyDependency[*server.BusServer]
+	MetricsServer   dependency.LazyDependency[*metrics.Server]
+	MetricsProvider dependency.LazyDependency[*metrics.Provider]
 }
 
 // NewContainer initializes and returns a new Container with all required dependencies.
@@ -138,6 +141,27 @@ func NewContainer() *Container {
 				panic(err)
 			}
 			return busServer
+		},
+	}
+
+	// Metrics section
+	c.MetricsServer = dependency.LazyDependency[*metrics.Server]{
+		InitFunc: func() *metrics.Server {
+			var (
+				port            = c.Config.Get().Metrics.ServerPort
+				metricsProvider = c.MetricsProvider.Get()
+				logger          = c.Logger.Get()
+			)
+			return metrics.NewServer(port, metricsProvider, logger)
+		},
+	}
+	c.MetricsProvider = dependency.LazyDependency[*metrics.Provider]{
+		InitFunc: func() *metrics.Provider {
+			var (
+				namespace = "nats_service"
+				logger    = c.Logger.Get()
+			)
+			return metrics.NewProvider(namespace, logger)
 		},
 	}
 

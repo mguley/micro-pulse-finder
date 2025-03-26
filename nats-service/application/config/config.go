@@ -25,15 +25,25 @@ func GetConfig() *Config {
 // Config holds all configuration settings for the application.
 //
 // Fields:
-//   - Nats: NATS configuration settings.
-//   - TLS:  TLS configuration settings.
-//   - RPC:  RPC configuration settings.
-//   - Env:  Environment type (e.g., dev, prod).
+//   - Nats:    NATS configuration settings.
+//   - TLS:     TLS configuration settings.
+//   - RPC:     RPC configuration settings.
+//   - Metrics: Metrics configuration settings.
+//   - Env:     Environment type (e.g., dev, prod).
 type Config struct {
-	Nats NatsConfig
-	TLS  TLSConfig
-	RPC  RPCConfig
-	Env  string
+	Nats    NatsConfig
+	TLS     TLSConfig
+	RPC     RPCConfig
+	Metrics MetricsConfig
+	Env     string
+}
+
+// MetricsConfig holds settings related to the application's metrics endpoint.
+//
+// Fields:
+//   - ServerPort: Port on which the metrics server listens.
+type MetricsConfig struct {
+	ServerPort string
 }
 
 // RPCConfig holds configuration settings for the RPC server.
@@ -70,11 +80,27 @@ type NatsConfig struct {
 //   - *Config: A pointer to the newly created configuration structure.
 func loadConfig() *Config {
 	return &Config{
-		Nats: loadNatsConfig(),
-		TLS:  loadTLSConfig(),
-		RPC:  loadRPCConfig(),
-		Env:  getEnv("ENV", "dev"),
+		Nats:    loadNatsConfig(),
+		TLS:     loadTLSConfig(),
+		RPC:     loadRPCConfig(),
+		Metrics: loadMetricsConfig(),
+		Env:     getEnv("ENV", "dev"),
 	}
+}
+
+// loadMetricsConfig loads the metrics configuration by reading the appropriate environment variable.
+//
+// Returns:
+//   - MetricsConfig: An instance of MetricsConfig with the metrics server port setting.
+func loadMetricsConfig() MetricsConfig {
+	metrics := MetricsConfig{
+		ServerPort: getEnv("METRICS_SERVER_PORT", ""),
+	}
+
+	checkRequiredVars("METRICS_SERVER_PORT", map[string]string{
+		"METRICS_SERVER_PORT": metrics.ServerPort,
+	})
+	return metrics
 }
 
 // loadRPCConfig loads RPC configuration settings from environment variables.
