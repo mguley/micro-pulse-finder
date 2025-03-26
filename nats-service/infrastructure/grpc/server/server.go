@@ -13,17 +13,36 @@ import (
 	"google.golang.org/grpc"
 )
 
-// BusServer is a wrapper for the gRPC BusService server.
-// It manages server initialization, registration and lifecycle.
+// BusServer is a wrapper around the underlying gRPC server for the BusService.
+//
+// It manages server initialization, registration, and lifecycle.
+//
+// Fields:
+//   - grpcServer: The gRPC server instance that handles RPC requests.
+//   - listener:   The network listener for incoming connections.
+//   - port:       Port on which the server listens.
+//   - env:        The environment in which the server is running (e.g., "prod" or "dev").
+//   - logger:     Logger for structured logging of server events.
 type BusServer struct {
-	grpcServer *grpc.Server // The gRPC server to serve RPC requests.
-	listener   net.Listener // The network listener for the server.
-	port       string       // The port the server listens on.
-	env        string       // The environment (e.g., "prod" or "dev").
+	grpcServer *grpc.Server
+	listener   net.Listener
+	port       string
+	env        string
 	logger     *slog.Logger
 }
 
 // NewBusServer creates a new instance of BusServer based on the provided configuration.
+//
+// Parameters:
+//   - env:      The environment (e.g., "prod" or "dev").
+//   - port:     The port on which the server should listen.
+//   - certFile: Path to the TLS certificate file (used in "prod").
+//   - keyFile:  Path to the TLS key file (used in "prod").
+//   - logger:   Logger instance for logging.
+//
+// Returns:
+//   - busServer: A pointer to the newly created BusServer.
+//   - err:       An error if server creation fails, or nil if successful.
 func NewBusServer(env, port, certFile, keyFile string, logger *slog.Logger) (busServer *BusServer, err error) {
 	var (
 		grpcServer   *grpc.Server
@@ -58,12 +77,17 @@ func NewBusServer(env, port, certFile, keyFile string, logger *slog.Logger) (bus
 	}, nil
 }
 
-// RegisterService registers the BusService implementation with the gRPC server.
+// RegisterService registers the BusService with the gRPC server.
+//
+// Parameters:
+//   - service: The BusServiceServer implementation to register.
 func (s *BusServer) RegisterService(service natsservicev1.BusServiceServer) {
 	natsservicev1.RegisterBusServiceServer(s.grpcServer, service)
 }
 
-// Start starts the gRPC server and begins listening for incoming requests.
+// Start begins serving incoming gRPC requests.
+//
+// It starts the server in a separate goroutine.
 func (s *BusServer) Start() {
 	s.logger.Info("Starting the Bus gRPC server...", "address", s.listener.Addr(), "env", s.env)
 	go func() {
@@ -74,7 +98,9 @@ func (s *BusServer) Start() {
 	}()
 }
 
-// WaitForShutdown gracefully shuts down the server upon receiving termination signals.
+// WaitForShutdown gracefully shuts down the gRPC server upon receiving termination signals.
+//
+// It waits for a shutdown signal and then gracefully stops the server.
 func (s *BusServer) WaitForShutdown() {
 	var (
 		signalChan = make(chan os.Signal, 1)

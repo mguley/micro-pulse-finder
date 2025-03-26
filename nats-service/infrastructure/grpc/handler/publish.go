@@ -9,7 +9,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Publish is a unary RPC that publishes a message to a given NATS subject.
+// Publish is a unary RPC method that publishes a message to a specified NATS subject.
+//
+// Parameters:
+//   - ctx:     The context for the RPC request.
+//   - request: Pointer to the PublishRequest containing the subject and data.
+//
+// Returns:
+//   - response: Response containing the status of the publish operation.
+//   - error:    An error if the operation fails, or nil if successful.
 func (s *BusService) Publish(
 	ctx context.Context,
 	request *natsservicev1.PublishRequest,

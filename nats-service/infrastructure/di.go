@@ -13,17 +13,24 @@ import (
 	"nats-service/infrastructure/grpc/validators"
 	"os"
 	"shared/dependency"
-	"shared/observability/nats-service/metrics"
 	"time"
 
 	"github.com/nats-io/nats.go"
 )
 
-// Container provides a lazily initialized set of dependencies.
+// Container provides a lazily initialized set of infrastructure dependencies.
+//
+// Fields:
+//   - Logger:     Lazy dependency for the logger instance.
+//   - Config:     Lazy dependency for the application configuration.
+//   - NatsClient: Lazy dependency for the NATS client.
+//   - Operations: Lazy dependency for the NATS operations service.
+//   - Validator:  Lazy dependency for the request validator.
+//   - BusService: Lazy dependency for the gRPC bus service.
+//   - BusServer:  Lazy dependency for the gRPC bus server.
 type Container struct {
 	Logger     dependency.LazyDependency[*slog.Logger]
 	Config     dependency.LazyDependency[*config.Config]
-	Metrics    dependency.LazyDependency[*metrics.Metrics]
 	NatsClient dependency.LazyDependency[*broker.Client]
 	Operations dependency.LazyDependency[*services.Operations]
 	Validator  dependency.LazyDependency[validators.Validator]
@@ -31,7 +38,10 @@ type Container struct {
 	BusServer  dependency.LazyDependency[*server.BusServer]
 }
 
-// NewContainer initializes and returns a new Container with dependencies.
+// NewContainer initializes and returns a new Container with all required dependencies.
+//
+// Returns:
+//   - *Container: A pointer to the newly created infrastructure container.
 func NewContainer() *Container {
 	c := &Container{}
 
@@ -55,9 +65,6 @@ func NewContainer() *Container {
 	c.Config = dependency.LazyDependency[*config.Config]{
 		InitFunc: config.GetConfig,
 	}
-	c.Metrics = dependency.LazyDependency[*metrics.Metrics]{
-		InitFunc: metrics.NewMetrics,
-	}
 	c.NatsClient = dependency.LazyDependency[*broker.Client]{
 		InitFunc: func() *broker.Client {
 			var (
@@ -69,11 +76,9 @@ func NewContainer() *Container {
 				timeout          = time.Duration(5) * time.Second
 				reconnectHandler = func(conn *nats.Conn) {
 					logger.Info("Reconnected to NATS", slog.String("url", conn.ConnectedUrl()))
-					c.Metrics.Get().Connection.NATSConnectionStatus.Set(1)
 				}
 				disconnectErrHandler = func(conn *nats.Conn, err error) {
 					logger.Error("Disconnected from NATS", slog.String("error", err.Error()))
-					c.Metrics.Get().Connection.NATSConnectionStatus.Set(0)
 				}
 			)
 			if address, err = entities.GetBroker().Address(); err != nil {
@@ -90,7 +95,7 @@ func NewContainer() *Container {
 				DisconnectedErrCB: disconnectErrHandler,
 				AllowReconnect:    true,
 			}
-			return broker.NewClient(options, c.Metrics.Get(), logger)
+			return broker.NewClient(options, logger)
 		},
 	}
 	c.Operations = dependency.LazyDependency[*services.Operations]{
@@ -104,7 +109,7 @@ func NewContainer() *Container {
 				logger.Error("Failed to connect to NATS", slog.String("error", err.Error()))
 				panic(err)
 			}
-			return services.NewOperations(conn, c.Metrics.Get(), logger)
+			return services.NewOperations(conn, logger)
 		},
 	}
 	c.Validator = dependency.LazyDependency[validators.Validator]{
