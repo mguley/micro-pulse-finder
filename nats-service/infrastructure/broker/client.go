@@ -90,5 +90,9 @@ func (c *Client) IsConnected() (isConnected bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	if c.conn == nil || c.conn.IsClosed() {
+		return false
+	}
+
 	return c.conn.IsConnected()
 }
