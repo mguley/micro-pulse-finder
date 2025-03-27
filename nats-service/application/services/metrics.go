@@ -77,7 +77,7 @@ func (m *MetricsService) Start() {
 //   - error: An error if stopping the metrics server encounters issues; otherwise, nil.
 func (m *MetricsService) Stop(ctx context.Context) (err error) {
 	m.logger.Info("Stopping metrics service")
-	m.provider.Stop()
+	m.provider.Stop(time.Duration(10) * time.Second)
 
 	if err = m.server.Stop(ctx); err != nil {
 		m.logger.Error("Error stopping metrics HTTP server", slog.String("error", err.Error()))

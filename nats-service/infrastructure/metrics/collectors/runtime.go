@@ -1,119 +1,80 @@
 package collectors
 
 import (
+	"log/slog"
 	"runtime"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// RuntimeMetrics collects Go runtime statistics.
+// RuntimeMetrics collects specific runtime memory statistics.
+//
+// Purpose: Periodically captures selected Go runtime statistics, complementing
+// the default Prometheus GoCollector.
 //
 // Fields:
-//   - BaseCollector:  Embeds BaseCollector for lifecycle management.
-//   - goroutines:     Gauge tracking the number of active goroutines.
-//   - gcPauses:       Histogram of garbage collection pause durations.
-//   - malloc:         Counter for total memory allocations.
-//   - frees:          Counter for total memory frees.
-//   - gcCount:        Counter for total garbage collections performed.
-//   - heapObjects:    Gauge tracking the number of allocated heap objects.
-//   - prevMalloc:     Stored value for previous memory allocations (used for delta computation).
-//   - prevFrees:      Stored value for previous memory frees (used for delta computation).
-//   - prevGCCount:    Stored value for previous garbage collection count (used for delta computation).
-//   - namespace:      Metric namespace to avoid naming collisions.
+//   - BaseCollector: Embeds shared lifecycle management functionality.
+//   - metrics:       Map of Prometheus Gauges for each collected metric.
+//   - namespace:     Namespace prefix for metric names.
 type RuntimeMetrics struct {
 	BaseCollector
-	goroutines  prometheus.Gauge
-	gcPauses    prometheus.Histogram
-	malloc      prometheus.Counter
-	frees       prometheus.Counter
-	gcCount     prometheus.Counter
-	heapObjects prometheus.Gauge
-	prevMalloc  uint64
-	prevFrees   uint64
-	prevGCCount uint32
-	namespace   string
+	metrics   map[string]prometheus.Gauge
+	namespace string
 }
 
-// NewRuntimeMetrics initializes a new RuntimeMetrics collector.
+// NewRuntimeMetrics creates an initialized RuntimeMetrics collector.
 //
 // Parameters:
-//   - namespace: Metric namespace to uniquely identify runtime metrics.
+//   - namespace: Metric namespace to prevent naming collisions.
+//   - logger:    Structured logger instance for collector lifecycle logging.
 //
 // Returns:
-//   - *RuntimeMetrics: Fully initialized runtime metrics collector.
-func NewRuntimeMetrics(namespace string) *RuntimeMetrics {
+//   - *RuntimeMetrics: Pointer to fully initialized RuntimeMetrics.
+func NewRuntimeMetrics(namespace string, logger *slog.Logger) *RuntimeMetrics {
 	runtimeMetrics := &RuntimeMetrics{
-		goroutines: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "goroutines",
-			Help:      "Number of running goroutines",
-		}),
-		gcPauses: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Namespace: namespace,
-			Name:      "gc_pause_seconds",
-			Help:      "Histogram of GC pause durations",
-			Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 15),
-		}),
-		malloc: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "memory_malloc_total",
-			Help:      "Total number of memory allocations",
-		}),
-		frees: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "memory_frees_total",
-			Help:      "Total number of memory frees",
-		}),
-		gcCount: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "gc_count_total",
-			Help:      "Total number of garbage collections",
-		}),
-		heapObjects: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "heap_objects",
-			Help:      "HeapObjects is the number of allocated heap objects.",
-		}),
+		metrics:   make(map[string]prometheus.Gauge),
 		namespace: namespace,
 	}
-
-	runtimeMetrics.Init()
+	runtimeMetrics.InitBase("RuntimeMetrics", logger)
 	return runtimeMetrics
 }
 
-// Register registers runtime metrics to a Prometheus registry.
+// InitMetrics initializes and registers runtime metrics.
 //
 // Parameters:
-//   - registry: Prometheus registry for metrics registration.
+//   - registry: Prometheus registry for metric registration.
 //
 // Returns:
-//   - err: Error if registration fails; otherwise nil.
-func (r *RuntimeMetrics) Register(registry *prometheus.Registry) (err error) {
-	metrics := []prometheus.Collector{
-		r.goroutines,
-		r.gcPauses,
-		r.malloc,
-		r.frees,
-		r.gcCount,
-		r.heapObjects,
+//   - err: Error during registration, or nil if successful.
+func (r *RuntimeMetrics) InitMetrics(registry *prometheus.Registry) (err error) {
+	metricDefs := map[string]string{
+		"heap_objects": "Number of allocated heap objects",
 	}
 
-	for _, metric := range metrics {
-		if err = registry.Register(metric); err != nil {
-			break
+	for name, help := range metricDefs {
+		item := prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: r.namespace,
+			Name:      name,
+			Help:      help,
+		})
+		if err = registry.Register(item); err != nil {
+			r.logger.Error("Runtime metric registration failed",
+				slog.String("metric", name),
+				slog.String("error", err.Error()))
+			return err
 		}
+		r.metrics[name] = item
 	}
-	return err
+	return nil
 }
 
 // Start initiates periodic collection of runtime metrics.
 //
 // Parameters:
-//   - interval: Frequency at which runtime metrics are updated.
+//   - interval: Interval for updating runtime metrics.
 func (r *RuntimeMetrics) Start(interval time.Duration) {
 	r.wg.Add(1)
-
 	go func() {
 		defer r.wg.Done()
 		ticker := time.NewTicker(interval)
@@ -121,7 +82,7 @@ func (r *RuntimeMetrics) Start(interval time.Duration) {
 
 		for {
 			select {
-			case <-r.ctx.Done():
+			case <-r.Done():
 				return
 			case <-ticker.C:
 				r.collectMetrics()
@@ -130,27 +91,10 @@ func (r *RuntimeMetrics) Start(interval time.Duration) {
 	}()
 }
 
-// collectMetrics retrieves and updates runtime metrics with current data.
-//
-// Implementation Detail: After reading the memory statistics, it updates the metrics and stores the current values
-// for subsequent delta calculations.
+// collectMetrics updates runtime metrics with current data from Go runtime.
 func (r *RuntimeMetrics) collectMetrics() {
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
 
-	r.goroutines.Set(float64(runtime.NumGoroutine()))
-	r.heapObjects.Set(float64(memStats.HeapObjects))
-
-	// Update Counters with deltas
-	r.malloc.Add(float64(memStats.Mallocs - r.prevMalloc))
-	r.frees.Add(float64(memStats.Frees - r.prevFrees))
-	r.gcCount.Add(float64(memStats.NumGC - r.prevGCCount))
-
-	r.prevMalloc, r.prevFrees, r.prevGCCount = memStats.Mallocs, memStats.Frees, memStats.NumGC
-
-	// Observe recent GC pause
-	if memStats.NumGC > 0 {
-		lastPause := memStats.PauseNs[(memStats.NumGC-1)%uint32(len(memStats.PauseNs))]
-		r.gcPauses.Observe(float64(lastPause) / 1e9)
-	}
+	r.metrics["heap_objects"].Set(float64(mem.HeapObjects))
 }
