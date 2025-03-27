@@ -73,7 +73,6 @@ func (c *NatsClient) Publish(ctx context.Context, subject string, data []byte) (
 		return fmt.Errorf("could not publish message: %s", response.GetMessage())
 	}
 
-	c.logger.Info("Message published successfully", "subject", subject)
 	return nil
 }
 
