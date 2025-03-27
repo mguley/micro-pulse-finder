@@ -38,20 +38,21 @@ func NewProvider(namespace string, logger *slog.Logger) *Provider {
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	metrics := []metricsCollectors.Collector{
-		metricsCollectors.NewRuntimeMetrics(namespace),
+	allCollectors := []metricsCollectors.Collector{
+		metricsCollectors.NewRuntimeMetrics(namespace, logger),
+		metricsCollectors.NewHeapMetrics(namespace, logger),
 		// Add more collectors here
 	}
 
-	for _, collector := range metrics {
-		if err := collector.Register(registry); err != nil {
-			logger.Error("Failed to register collector", slog.String("error", err.Error()))
+	for _, collector := range allCollectors {
+		if err := collector.InitMetrics(registry); err != nil {
+			logger.Error("Collector init failed", slog.String("error", err.Error()))
 		}
 	}
 
 	return &Provider{
 		Registry:   registry,
-		Collectors: metrics,
+		Collectors: allCollectors,
 		logger:     logger,
 	}
 }
@@ -68,9 +69,9 @@ func (p *Provider) StartCollectors(interval time.Duration) {
 }
 
 // Stop gracefully terminates all metric collectors.
-func (p *Provider) Stop() {
+func (p *Provider) Stop(timeout time.Duration) {
 	for _, collector := range p.Collectors {
-		collector.Stop()
+		collector.StopWithTimeout(timeout)
 	}
 	p.logger.Info("Metrics collectors stopped")
 }
