@@ -45,7 +45,6 @@ func (s *BusService) Publish(
 			}, result
 		}
 
-		s.logger.Info("Publish succeeded", "subject", request.GetSubject())
 		return &natsservicev1.PublishResponse{
 			Success: true,
 			Message: "Message published successfully",

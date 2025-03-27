@@ -75,3 +75,27 @@ remote/deploy:
 	@$(MAKE) remote/copy-files
 	@$(MAKE) remote/restart-service
 	@echo 'Deployment complete.'
+
+# =============================================================================== #
+# LOAD TEST RUNNERS
+# =============================================================================== #
+
+## run/load-tests: Run load tests with default configuration.
+.PHONY: run/load-tests
+run/load-tests:
+	go run ./cmd/load
+
+## run/load-publish: Run NATS publish load tests.
+.PHONY: run/load-publish
+run/load-publish:
+	LOAD_TEST_TYPE=publish go run ./cmd/load
+
+## run/load-high-concurrency: Run with high concurrency (300 clients).
+.PHONY: run/load-high-concurrency
+run/load-high-concurrency:
+	LOAD_TEST_CONCURRENCY=300 go run ./cmd/load
+
+## run/load-long-duration: Run extended duration test (5 minutes).
+.PHONY: run/load-long-duration
+run/load-long-duration:
+	LOAD_TEST_DURATION=5m go run ./cmd/load

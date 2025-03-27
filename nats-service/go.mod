@@ -3,6 +3,7 @@ module nats-service
 go 1.24
 
 require (
+	github.com/mguley/go-loadtest v0.0.0-20250322110045-140e7bd4c5f4
 	github.com/nats-io/nats.go v1.39.0
 	github.com/prometheus/client_golang v1.21.1
 	github.com/stretchr/testify v1.10.0

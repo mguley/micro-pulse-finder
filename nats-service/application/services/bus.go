@@ -52,8 +52,6 @@ func (ops *Operations) Publish(subject string, data []byte) (err error) {
 		return fmt.Errorf("could not publish: %w", err)
 	}
 
-	ops.logger.Info("Message published successfully", "subject", subject, "size", len(data))
-
 	return nil
 }
 
