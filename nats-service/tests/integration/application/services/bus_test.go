@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,14 +21,14 @@ func TestOperations_Subscribe_Publish(t *testing.T) {
 	received := make(chan *nats.Msg, 1)
 	defer close(received)
 
-	sub, err := ops.Subscribe(subject, "", func(msg *nats.Msg) {
+	sub, err := ops.Subscribe(context.Background(), subject, "", func(msg *nats.Msg) {
 		received <- msg
 	})
 	require.NoError(t, err, "Failed to subscribe to subject")
 	require.NotNil(t, sub, "Failed to create a subscriber")
 
 	// Publish
-	err = ops.Publish(subject, data)
+	err = ops.Publish(context.Background(), subject, data)
 	require.NoError(t, err, "Failed to publish message")
 
 	// Verify

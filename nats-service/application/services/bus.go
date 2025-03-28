@@ -1,17 +1,14 @@
 package services
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/nats-io/nats.go"
 )
 
-// errNatsConnection indicates that the NATS connection is not established or closed.
-var errNatsConnection = errors.New("nats connection is not established")
-
-// Operations provides methods for interacting with a NATS messaging system.
+// Operations provides methods for interacting with the NATS message broker.
 //
 // Fields:
 //   - conn:    The active NATS connection used to send/receive messages.
@@ -24,8 +21,8 @@ type Operations struct {
 // NewOperations creates a new instance of Operations.
 //
 // Parameters:
-//   - conn:    A pointer to the NATS connection.
-//   - logger:  Logger instance for logging.
+//   - conn:    A pointer to the active NATS connection.
+//   - logger:  A pointer to the logger to be used for logging.
 //
 // Returns:
 //   - *Operations: A pointer to the newly created Operations instance.
@@ -36,56 +33,72 @@ func NewOperations(conn *nats.Conn, logger *slog.Logger) *Operations {
 // Publish sends a message to a specified NATS topic.
 //
 // Parameters:
-//   - subject: The NATS subject to which the message will be published.
+//   - ctx:     Context for managing timeouts and cancellation signals.
+//   - subject: The subject/topic to which the message will be published.
 //   - data:    The byte slice representing the message payload.
 //
 // Returns:
 //   - err: An error if the publish operation fails, or nil if successful.
-func (ops *Operations) Publish(subject string, data []byte) (err error) {
-	if ops.conn == nil || ops.conn.IsClosed() {
-		ops.logger.Error("NATS connection is not available", "subject", subject)
-		return errNatsConnection
+func (o *Operations) Publish(ctx context.Context, subject string, data []byte) (err error) {
+	if o.conn == nil || o.conn.IsClosed() {
+		o.logger.Error("NATS connection is not established", slog.String("topic", subject))
+		return fmt.Errorf("connection is not established")
 	}
 
-	if err = ops.conn.Publish(subject, data); err != nil {
-		ops.logger.Error("Failed to publish message", "subject", subject, "error", err)
-		return fmt.Errorf("could not publish: %w", err)
+	select {
+	case <-ctx.Done():
+		o.logger.Info("Context canceled before publishing", slog.String("topic", subject))
+		return ctx.Err()
+	default:
+		if err = o.conn.Publish(subject, data); err != nil {
+			o.logger.Error("NATS connection publish failed",
+				slog.String("topic", subject), slog.String("error", err.Error()))
+			return fmt.Errorf("could not send message to NATS: %w", err)
+		}
 	}
 
-	return nil
+	return err
 }
 
 // Subscribe listens for messages on the specified NATS subject.
 //
 // Parameters:
-//   - subject:    The NATS subject to subscribe to.
+//   - ctx:        Context for managing timeouts and cancellation signals.
+//   - subject:    The subject/topic to subscribe to.
 //   - queueGroup: (Optional) The queue group for load-balanced message processing.
 //   - handler:    The message handler function that will process incoming messages.
 //
 // Returns:
 //   - sub: A pointer to the NATS subscription if the subscription is successful.
 //   - err: An error if the subscription operation fails; otherwise, nil.
-func (ops *Operations) Subscribe(
+func (o *Operations) Subscribe(
+	ctx context.Context,
 	subject, queueGroup string,
 	handler func(message *nats.Msg),
 ) (sub *nats.Subscription, err error) {
-	if ops.conn == nil || ops.conn.IsClosed() {
-		return nil, errNatsConnection
+	if o.conn == nil || o.conn.IsClosed() {
+		o.logger.Error("NATS connection is not established", slog.String("topic", subject))
+		return nil, fmt.Errorf("connection is not established")
 	}
 
-	switch queueGroup {
-	case "":
-		sub, err = ops.conn.Subscribe(subject, handler)
+	select {
+	case <-ctx.Done():
+		o.logger.Info("Context canceled before subscription", slog.String("topic", subject))
+		return nil, ctx.Err()
 	default:
-		sub, err = ops.conn.QueueSubscribe(subject, queueGroup, handler)
+		switch queueGroup {
+		case "":
+			sub, err = o.conn.Subscribe(subject, handler)
+		default:
+			sub, err = o.conn.QueueSubscribe(subject, queueGroup, handler)
+		}
+
+		if err != nil {
+			o.logger.Error("NATS connection subscribe failed",
+				slog.String("topic", subject), slog.String("error", err.Error()))
+			return nil, fmt.Errorf("could not subscribe to NATS subject: %w", err)
+		}
+
+		return sub, nil
 	}
-
-	if err != nil {
-		ops.logger.Error("Failed to subscribe to queue", "subject", subject, "error", err)
-		return nil, fmt.Errorf("could not subscribe to subject %s: %w", subject, err)
-	}
-
-	ops.logger.Info("Subscribed to queue", "subject", subject)
-
-	return sub, nil
 }

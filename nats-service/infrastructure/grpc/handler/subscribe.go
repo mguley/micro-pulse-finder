@@ -1,11 +1,13 @@
 package handler
 
 import (
-	"fmt"
+	"log/slog"
 	natsservicev1 "shared/proto/nats-service/gen"
 
 	"github.com/nats-io/nats.go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Subscribe is a server-streaming RPC method that subscribes to a NATS subject and streams incoming messages.
@@ -23,55 +25,51 @@ func (s *BusService) Subscribe(
 	server grpc.ServerStreamingServer[natsservicev1.SubscribeResponse],
 ) (err error) {
 	if result := s.validator.ValidateSubscribeRequest(request); result != nil {
-		s.logger.Error(
-			"Subscribe request failed due to validation",
-			"subject", request.GetSubject(), "error", result)
+		s.logger.Error("Subscribe request failed due to validation",
+			slog.String("subject", request.Subject), slog.String("error", result.Error()))
 		return result
 	}
 
 	var (
 		sub        *nats.Subscription
 		messagesCh = make(chan *nats.Msg, 64)
-		ctx        = server.Context() // Use server context to detect when client cancels or server is shutting down
+		ctx        = server.Context()
 		subject    = request.GetSubject()
 		queueGroup = request.GetQueueGroup()
 		handler    = func(msg *nats.Msg) { messagesCh <- msg }
 	)
 
-	if sub, err = s.operations.Subscribe(subject, queueGroup, handler); err != nil {
-		s.logger.Error("Subscribe operation failed", "subject", subject, "error", err)
-		return fmt.Errorf("could not subscribe to subject: %s: %w", request.Subject, err)
+	if sub, err = s.operations.Subscribe(ctx, subject, queueGroup, handler); err != nil {
+		s.logger.Error("Failed to subscribe",
+			slog.String("topic", subject), slog.String("error", err.Error()))
+		return status.Error(codes.Internal, err.Error())
 	}
 
-	// Ensure we unsubscribe and close the channel when finished.
 	defer func() {
-		err = sub.Unsubscribe()
-		close(messagesCh)
+		if unsubErr := sub.Unsubscribe(); unsubErr != nil {
+			s.logger.Error("Failed to unsubscribe", slog.String("error", unsubErr.Error()))
+		}
 	}()
 
-	// Listen for messages or context cancellation.
 	for {
 		select {
 		case <-ctx.Done():
-			// The client closed the stream or the server is shutting down.
-			s.logger.Info("Context canceled, shutting down subscription.")
-			return ctx.Err()
-
-		case msg := <-messagesCh:
-			if msg == nil {
-				// Channel closed, end the stream.
-				s.logger.Info("Message channel closed, end the stream.")
+			s.logger.Info("Context canceled, shutting down subscription")
+			return status.Error(codes.Canceled, ctx.Err().Error())
+		case message, ok := <-messagesCh:
+			if !ok {
+				s.logger.Info("Message channel closed, shutting down subscription")
 				return nil
 			}
 
-			// Construct a SubscribeResponse and send it to the client.
 			response := &natsservicev1.SubscribeResponse{
-				Data:    msg.Data,
-				Subject: msg.Subject,
+				Data:    message.Data,
+				Subject: message.Subject,
 			}
 			if err = server.Send(response); err != nil {
-				s.logger.Error("Send response failed", "subject", response.Subject, "error", err)
-				return fmt.Errorf("could not send message to stream: %w", err)
+				s.logger.Error("Failed to send response",
+					slog.String("topic", subject), slog.String("error", err.Error()))
+				return status.Error(codes.Internal, err.Error())
 			}
 		}
 	}

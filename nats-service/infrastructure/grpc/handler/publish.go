@@ -3,11 +3,18 @@ package handler
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	natsservicev1 "shared/proto/nats-service/gen"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// successResponse is a pre-allocated constant response for successful publish operations.
+var successResponse = &natsservicev1.PublishResponse{
+	Success: true,
+	Message: "Message published successfully",
+}
 
 // Publish is a unary RPC method that publishes a message to a specified NATS subject.
 //
@@ -17,37 +24,23 @@ import (
 //
 // Returns:
 //   - response: Response containing the status of the publish operation.
-//   - error:    An error if the operation fails, or nil if successful.
+//   - err:      An error if the operation fails, or nil if successful.
 func (s *BusService) Publish(
 	ctx context.Context,
 	request *natsservicev1.PublishRequest,
 ) (response *natsservicev1.PublishResponse, err error) {
-	s.logger.Debug(
-		"Publish request received",
-		"subject", request.GetSubject(), "size", len(request.GetData()))
-
-	select {
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "context canceled")
-
-	default:
-		if result := s.validator.ValidatePublishRequest(request); result != nil {
-			s.logger.Error(
-				"Publish request failed due to validation error",
-				"subject", request.GetSubject(), "error", result)
-			return nil, result
-		}
-		if result := s.operations.Publish(request.GetSubject(), request.GetData()); result != nil {
-			s.logger.Error("Publish failed", "subject", request.GetSubject(), "error", result)
-			return &natsservicev1.PublishResponse{
-				Success: false,
-				Message: fmt.Sprintf("Could not publish: %v", result),
-			}, result
-		}
-
-		return &natsservicev1.PublishResponse{
-			Success: true,
-			Message: "Message published successfully",
-		}, nil
+	if result := s.validator.ValidatePublishRequest(request); result != nil {
+		s.logger.Error("Publish request failed due to validation",
+			slog.String("subject", request.Subject), slog.String("error", result.Error()))
+		return nil, result
 	}
+
+	if err = s.operations.Publish(ctx, request.GetSubject(), request.GetData()); err != nil {
+		s.logger.Error("Failed to publish",
+			slog.String("subject", request.GetSubject()),
+			slog.String("error", err.Error()))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("could not publish: %v", err))
+	}
+
+	return successResponse, nil
 }
