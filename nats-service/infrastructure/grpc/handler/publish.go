@@ -10,6 +10,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// successResponse is a pre-allocated constant response for successful publish operations.
+var successResponse = &natsservicev1.PublishResponse{
+	Success: true,
+	Message: "Message published successfully",
+}
+
 // Publish is a unary RPC method that publishes a message to a specified NATS subject.
 //
 // Parameters:
@@ -36,8 +42,5 @@ func (s *BusService) Publish(
 		return nil, status.Error(codes.Internal, fmt.Sprintf("could not publish: %v", err))
 	}
 
-	return &natsservicev1.PublishResponse{
-		Success: true,
-		Message: "Message published successfully",
-	}, nil
+	return successResponse, nil
 }
