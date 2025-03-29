@@ -90,6 +90,11 @@ run/load-tests:
 run/load-publish:
 	LOAD_TEST_TYPE=publish go run ./cmd/load
 
+## run/load-subscribe: Run NATS subscribe load tests.
+.PHONY: run/load-subscribe
+run/load-subscribe:
+	LOAD_TEST_TYPE=subscribe go run ./cmd/load
+
 ## run/load-high-concurrency: Run with high concurrency (300 clients).
 .PHONY: run/load-high-concurrency
 run/load-high-concurrency:

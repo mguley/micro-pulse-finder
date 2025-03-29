@@ -54,7 +54,6 @@ func (s *BusService) Subscribe(
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("Context canceled, shutting down subscription")
 			return status.Error(codes.Canceled, ctx.Err().Error())
 		case message, ok := <-messagesCh:
 			if !ok {

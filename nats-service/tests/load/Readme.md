@@ -9,6 +9,9 @@ make run/nats-grpc-server
 ```bash
 make run/load-tests
 ```
+```bash
+make run/load-subscribe
+```
 
 ##### Memory Profiling and Performance Testing
 
