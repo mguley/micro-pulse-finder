@@ -53,9 +53,21 @@ func NewNatsServiceRunnerFactory(
 func (f *NatsServiceRunnerFactory) CreateRunner(testType config.LoadTestType) (runner core.Runner, err error) {
 	switch testType {
 	case config.PublishTest:
-		return NewNatsServicePublishRunner(f.client, f.config.MessageSize, f.config.Subject, f.logger), nil
+		return NewNatsServicePublishRunner(
+			f.client,
+			f.config.MessageSize,
+			f.config.Subject,
+			f.logger), nil
 	case config.SubscribeTest:
-		return runner, nil
+		return NewNatsServiceSubscribeRunner(
+			f.client,
+			f.config.Subject,
+			f.config.QueueGroup,
+			f.config.MessageSize,
+			f.config.MaxSubscribers,
+			f.config.PublishInterval,
+			f.config.SubscribeTimeout,
+			f.logger), nil
 	default:
 		return nil, fmt.Errorf("unknown load test type: %s", testType)
 	}

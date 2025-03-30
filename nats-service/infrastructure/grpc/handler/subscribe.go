@@ -3,6 +3,7 @@ package handler
 import (
 	"log/slog"
 	natsservicev1 "shared/proto/nats-service/gen"
+	"sync"
 
 	"github.com/nats-io/nats.go"
 	"google.golang.org/grpc"
@@ -10,16 +11,36 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Subscribe is a server-streaming RPC method that subscribes to a NATS subject and streams incoming messages.
+const (
+	// channelBufferSize defines the buffer size for the messages channel.
+	channelBufferSize = 64
+)
+
+// responsePool is a sync.Pool used to reuse SubscribeResponse objects
+// to minimize allocations during high message throughput.
+var responsePool = sync.Pool{
+	New: func() interface{} {
+		return &natsservicev1.SubscribeResponse{}
+	},
+}
+
+// reset clears all fields in the SubscribeResponse to prepare it for reuse.
+func reset(response *natsservicev1.SubscribeResponse) {
+	response.Data = nil
+	response.Subject = ""
+}
+
+// Subscribe is a server-streaming RPC method that subscribes to a NATS subject
+// and streams incoming messages to the client.
 //
-// It listens for messages on the specified subject and streams them to the client.
+// It listens for messages on the specified subject and streams them as SubscribeResponse messages.
 //
 // Parameters:
-//   - request: Pointer to the SubscribeRequest containing the subject and optional queue group.
-//   - server:  The gRPC server streaming interface for sending SubscribeResponse messages.
+//   - request: Pointer to the SubscribeRequest containing the subject and an optional queue group.
+//   - server:  The gRPC server streaming interface used to send SubscribeResponse messages.
 //
 // Returns:
-//   - err: An error if the subscription or streaming fails, or nil if successful.
+//   - err: An error if the subscription or streaming fails, or nil if the operation is successful.
 func (s *BusService) Subscribe(
 	request *natsservicev1.SubscribeRequest,
 	server grpc.ServerStreamingServer[natsservicev1.SubscribeResponse],
@@ -32,7 +53,7 @@ func (s *BusService) Subscribe(
 
 	var (
 		sub        *nats.Subscription
-		messagesCh = make(chan *nats.Msg, 64)
+		messagesCh = make(chan *nats.Msg, channelBufferSize)
 		ctx        = server.Context()
 		subject    = request.GetSubject()
 		queueGroup = request.GetQueueGroup()
@@ -54,7 +75,6 @@ func (s *BusService) Subscribe(
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("Context canceled, shutting down subscription")
 			return status.Error(codes.Canceled, ctx.Err().Error())
 		case message, ok := <-messagesCh:
 			if !ok {
@@ -62,15 +82,22 @@ func (s *BusService) Subscribe(
 				return nil
 			}
 
-			response := &natsservicev1.SubscribeResponse{
-				Data:    message.Data,
-				Subject: message.Subject,
-			}
+			// Retrieve a response object from the pool and populate it.
+			response := responsePool.Get().(*natsservicev1.SubscribeResponse)
+			response.Data = message.Data
+			response.Subject = message.Subject
+
 			if err = server.Send(response); err != nil {
+				reset(response)
+				responsePool.Put(response)
 				s.logger.Error("Failed to send response",
 					slog.String("topic", subject), slog.String("error", err.Error()))
 				return status.Error(codes.Internal, err.Error())
 			}
+
+			// Reset and return the response object to the pool.
+			reset(response)
+			responsePool.Put(response)
 		}
 	}
 }

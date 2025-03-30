@@ -22,31 +22,37 @@ const (
 	SubscribeTest LoadTestType = "subscribe"
 )
 
-// LoadTestConfig holds configuration for NATS service load tests.
+// LoadTestConfig holds configuration parameters for NATS service load tests.
 //
 // Fields:
-//   - Duration:       Total duration of the load test.
-//   - Concurrency:    Number of concurrent operations during the test.
-//   - WarmupDuration: Duration of the warmup period before the test starts.
-//   - ReportInterval: Interval between test reports.
-//   - LogLevel:       Logging level (e.g., "info", "debug").
-//   - OutputPath:     File path to output JSON reports.
-//   - Tags:           Custom tags for the load test.
-//   - TestType:       Type of load test (e.g., "publish", "subscribe").
-//   - RpcHost:        Hostname for the gRPC server.
-//   - RpcPort:        Port for the gRPC server.
-//   - Subject:        NATS subject for the load test messages.
-//   - QueueGroup:     Queue group name for load testing.
-//   - MessageSize:    Size of the message payload in bytes.
+//   - Duration:          Total duration of the load test.
+//   - Concurrency:       Number of concurrent operations during the test.
+//   - MaxSubscribers:    Maximum number of concurrent subscribers (used in subscribe tests).
+//   - WarmupDuration:    Duration of the warmup period before the actual test begins.
+//   - ReportInterval:    Interval at which progress reports are generated during the test.
+//   - PublishInterval:   Interval between published messages (used in subscribe tests).
+//   - SubscribeTimeout:  Timeout duration for subscription operations.
+//   - LogLevel:          Logging level (e.g., "info", "debug").
+//   - OutputPath:        File path for JSON-formatted test results output.
+//   - Tags:              Custom metadata tags for the load test.
+//   - TestType:          Type of load test to execute ("publish" or "subscribe").
+//   - RpcHost:           Hostname or IP address of the gRPC server.
+//   - RpcPort:           Port number of the gRPC server.
+//   - Subject:           NATS subject for publishing or subscribing to messages.
+//   - QueueGroup:        Queue group name for subscription tests (used for load balancing).
+//   - MessageSize:       Size of the message payload (in bytes).
 type LoadTestConfig struct {
 	// Common test configuration.
-	Duration       time.Duration
-	Concurrency    int
-	WarmupDuration time.Duration
-	ReportInterval time.Duration
-	LogLevel       string
-	OutputPath     string
-	Tags           map[string]string
+	Duration         time.Duration
+	Concurrency      int
+	MaxSubscribers   int
+	WarmupDuration   time.Duration
+	ReportInterval   time.Duration
+	PublishInterval  time.Duration
+	SubscribeTimeout time.Duration
+	LogLevel         string
+	OutputPath       string
+	Tags             map[string]string
 
 	// Service specific configuration.
 	TestType    string
@@ -79,14 +85,17 @@ func GetConfig() *LoadTestConfig {
 //   - *LoadTestConfig: A pointer to the populated load test configuration.
 func loadConfig() *LoadTestConfig {
 	return &LoadTestConfig{
-		// Common test configuration with defaults.
-		Duration:       getDurationEnv("LOAD_TEST_DURATION", time.Duration(30)*time.Second),
-		Concurrency:    getIntEnv("LOAD_TEST_CONCURRENCY", 10),
-		WarmupDuration: getDurationEnv("LOAD_TEST_WARMUP", time.Duration(5)*time.Second),
-		ReportInterval: getDurationEnv("LOAD_TEST_REPORT_INTERVAL", time.Duration(1)*time.Second),
-		LogLevel:       getEnv("LOAD_TEST_LOG_LEVEL", "info"),
-		OutputPath:     getEnv("LOAD_TEST_OUTPUT_PATH", ""),
-		Tags:           parseTags(getEnv("LOAD_TEST_TAGS", "")),
+		// Common test configuration with default values.
+		Duration:         getDurationEnv("LOAD_TEST_DURATION", time.Duration(30)*time.Second),
+		Concurrency:      getIntEnv("LOAD_TEST_CONCURRENCY", 10),
+		MaxSubscribers:   getIntEnv("LOAD_TEST_MAX_SUBSCRIBERS", 10),
+		WarmupDuration:   getDurationEnv("LOAD_TEST_WARMUP", time.Duration(5)*time.Second),
+		ReportInterval:   getDurationEnv("LOAD_TEST_REPORT_INTERVAL", time.Duration(1)*time.Second),
+		PublishInterval:  getDurationEnv("LOAD_TEST_PUBLISH_INTERVAL", time.Duration(50)*time.Millisecond),
+		SubscribeTimeout: getDurationEnv("LOAD_TEST_SUBSCRIBE_TIMEOUT", time.Duration(30)*time.Second),
+		LogLevel:         getEnv("LOAD_TEST_LOG_LEVEL", "info"),
+		OutputPath:       getEnv("LOAD_TEST_OUTPUT_PATH", ""),
+		Tags:             parseTags(getEnv("LOAD_TEST_TAGS", "")),
 
 		// Service specific configuration.
 		TestType:    getEnv("LOAD_TEST_TYPE", "publish"),
